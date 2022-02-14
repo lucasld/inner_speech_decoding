@@ -1,6 +1,9 @@
 import mne
 import numpy as np
+import tensorflow as tf
+
 import utilities
+
 
 def load_data(subjects=range(1,11), path='./dataset'):
     """Load EEG-Data and Event-Data into a numpy array.
@@ -57,3 +60,42 @@ def choose_condition(data, events, condition):
     data = data[keep_pos]
     events = events[keep_pos]
     return data, events
+
+
+def preprocessing_pipeline(data):
+    """Apply preproccesing pipeline to the given dataset.
+    
+    :param data: data to be preprocessed
+    :type data: tensorflow 'Dataset'
+    :return: preprocessed dataset
+    :rtype: tensorflow 'Dataset'
+    """
+    # one-hot targets
+    data = data.map(lambda input, target: (
+        input,
+        tf.one_hot(target, 3)
+    ))
+    # cache the dataset
+    data = data.cache()
+    # shuffle, batch and prefetch the dataset
+    data = data.shuffle(1000)
+    data = data.batch(32)
+    data = data.prefetch(100)
+    return data
+
+
+def split_dataset(data, size, splits={'train': 0.7,
+                                      'test': 0.15,
+                                      'valid': 0.15}):
+    assert sum(splits.values()) <= 1, "split-proportions sum to more than 1!"
+    datasets = {}
+    take = 0
+    for i, (key, proportion) in enumerate(splits.items()):
+        if i == 0:
+            take = int(size * proportion)
+            datasets[key] = data.take(take)
+        else:
+            datasets[key] = data.skip(take)
+            datasets[key] = datasets[key].take(int(size * proportion))
+            take += int(size * proportion)
+    return datasets
