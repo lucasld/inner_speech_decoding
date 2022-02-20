@@ -8,10 +8,11 @@ import utilities
 def load_data(subjects=range(1,11), path='./dataset'):
     """Load EEG-Data and Event-Data into a numpy array.
     
-    :param subjects: array of subjects from which the sessions should be loaded
-    :type subjects: array of integers
-    :param path: path to dataset-directory
-    :type path: string
+    :param subjects: array of subjects from which the sessions should be
+        loaded, defaults to subjects 1 to 10
+    :type subjects: array of integers, optional
+    :param path: path to dataset-directory, defaults to './dataset'
+    :type path: string, optional
     :return: eeg-data and event data in seperate arrays
     :rtype: tuple of two numpy arrays
     """
@@ -42,7 +43,18 @@ def load_data(subjects=range(1,11), path='./dataset'):
 def choose_condition(data, events, condition):
     """Filters out a specific condition from the data.
 
-    ...
+    :param data: data from which to extract conditions from
+    :type data: numpy array
+    :param events: event data of shape [trials x 4]
+    :type events: numpy array
+    :param condition: Condition to be filtered out of the data.
+        Conditions that exist are:
+        0 <=> Pronounced Speech
+        1 <=> Inner Speech
+        2 <=> Visualized Condition
+    :type condition: string of integer specifying the condition
+    :return: eeg data and event data
+    :rtype: tuple of two numpy arrays
     """
     # convert condition to the right format
     if type(condition)==str:
@@ -62,11 +74,22 @@ def choose_condition(data, events, condition):
     return data, events
 
 
-def preprocessing_pipeline(data):
+def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
     """Apply preproccesing pipeline to the given dataset.
     
     :param data: data to be preprocessed
     :type data: tensorflow 'Dataset'
+    :param batch_size: number of elements per batch, defaults to 32
+    :type batch_size: integer, optional
+    :param functions: functions that should be mapped to the data,
+        defaults to None
+    :type functions: single function or list of functions, functions take and
+        return input and target, optional
+    :param args: list of arguments for each of the provided functions,
+        defaults to None
+    :type args: list of arguments of only one function was provided,
+        list of lists of arguments if several functions where provided,
+        optional
     :return: preprocessed dataset
     :rtype: tensorflow 'Dataset'
     """
@@ -75,27 +98,71 @@ def preprocessing_pipeline(data):
         input,
         tf.one_hot(target, 3)
     ))
+    # map functions provided as arguments to data
+    if type(functions) is not list and functions:
+        functions = [functions]
+        args = [args]
+    for func, arg in zip(functions, args) if functions else []:
+        print(func, arg)
+        data = data.map(lambda input, target: func((input, target), *arg))
     # cache the dataset
     data = data.cache()
     # shuffle, batch and prefetch the dataset
     data = data.shuffle(1000)
-    data = data.batch(32)
+    data = data.batch(batch_size)
     data = data.prefetch(100)
     return data
 
 
-def split_dataset(data, size, splits={'train': 0.7,
+def filter_interval(sample, interval, data_frequency):
+    """Cut out a specific interval from a sample of EEG-Data.
+    
+    :param sample: sample consisitng of channel_number * data_points
+    :type sample: tensor
+    :param interval: two values specifying the starting and end point in
+        seconds of the interval to be cut out
+    :type interval: list of two floating point numbers
+    :param data_frequency: specifies the frequency the provided data was
+        measured at
+    :type data_frequency: floating point number
+    :return: cut sample
+    :rtype: tensor
+    """
+    X, y = sample
+    start_index_interval = int(interval[0] * data_frequency)
+    end_index_interval = int(interval[1] * data_frequency)
+    X = X[:, start_index_interval:end_index_interval]
+    return X, y
+
+
+def split_dataset(dataset, splits={'train': 0.7,
                                       'test': 0.15,
                                       'valid': 0.15}):
+    """Split a tensorflow dataset into n subsets.
+
+    :param dataset: dataset to be split up
+    :type dataset: tf.data.Dataset
+    :param splits: specifies the proportion for each subset, defaults to:
+        'train' => 70%
+        'test' => 15%
+        'valid' => 15%
+    :type splits: dictonary, values of type float which sum up to max 1,
+        optional
+    :return: new smaller datasets
+    :rtype: dictonary, keys are the same as in the splits-argument and the
+        values are tf.data.Dataset's
+    """
     assert sum(splits.values()) <= 1, "split-proportions sum to more than 1!"
     datasets = {}
+    batch_number = len(list(dataset))
+    # iterate through splits to create dataset-subsets
     take = 0
     for i, (key, proportion) in enumerate(splits.items()):
         if i == 0:
-            take = int(size * proportion)
-            datasets[key] = data.take(take)
+            take = int(batch_number * proportion)
+            datasets[key] = dataset.take(take)
         else:
-            datasets[key] = data.skip(take)
-            datasets[key] = datasets[key].take(int(size * proportion))
-            take += int(size * proportion)
+            datasets[key] = dataset.skip(take)
+            datasets[key] = datasets[key].take(int(batch_number * proportion))
+            take += int(batch_number * proportion)
     return datasets
