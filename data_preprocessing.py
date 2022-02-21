@@ -96,14 +96,13 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
     # one-hot targets
     data = data.map(lambda input, target: (
         input,
-        tf.one_hot(target, 3)
+        tf.one_hot(target, 4)
     ))
     # map functions provided as arguments to data
-    if type(functions) is not list and functions:
+    if type(functions) not in [list, tuple] and functions:
         functions = [functions]
         args = [args]
     for func, arg in zip(functions, args) if functions else []:
-        print(func, arg)
         data = data.map(lambda input, target: func((input, target), *arg))
     # cache the dataset
     data = data.cache()
@@ -120,7 +119,13 @@ def filter_interval(sample, interval, data_frequency):
     :param sample: sample consisitng of channel_number * data_points
     :type sample: tensor
     :param interval: two values specifying the starting and end point in
-        seconds of the interval to be cut out
+        seconds of the interval to be cut out.
+        Each sample consists of a 4.5 second EEG-data window.
+        These 4.5 seconds consist of:
+        Concentration Interval - 0.5 s
+        Cue Interval - 0.5 s
+        Action Interval - 2.5 s
+        Relac Interval - 1 s
     :type interval: list of two floating point numbers
     :param data_frequency: specifies the frequency the provided data was
         measured at
@@ -166,3 +171,20 @@ def split_dataset(dataset, splits={'train': 0.7,
             datasets[key] = datasets[key].take(int(batch_number * proportion))
             take += int(batch_number * proportion)
     return datasets
+
+
+def normalization(data, axis=2, epsilon=1e-8):
+    """Normalize numpy data.
+
+    :param data: dataset of eeg-data
+    :type data: numpy array of dimension [samples x channels x N]
+    :param axis: axis along which to normalize the data
+    :type axis: int or tuple of ints
+    :param epsilon: epsilon to prevent division by zero
+    :type epsilon: float
+    :return: normalized dataset
+    :rtype: numpy array
+    """
+    mean, variance = np.mean(data, axis=axis), np.var(data, axis=axis)
+    data_normed = (data - mean[:, :, np.newaxis]) / np.sqrt(variance + epsilon)[:, :, np.newaxis]
+    return data_normed

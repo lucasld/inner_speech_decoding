@@ -1,3 +1,7 @@
+import matplotlib.pyplot as plt
+import tensorflow as tf
+
+
 def progress_bar(proportion, size=100):
     """Tool to visualize the progress of any process.
     
@@ -15,3 +19,7 @@ def progress_bar(proportion, size=100):
         else:
             elements[1] += ' '
     print('\033[0m'.join(elements), end='\r')
+
+
+def plot_eeg_data(sample):
+    plt.imshow(sample)
