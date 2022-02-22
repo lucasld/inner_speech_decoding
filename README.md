@@ -14,3 +14,4 @@ A detailed description can be found [here](https://www.biorxiv.org/content/10.11
 or use [these](https://openneuro.org/datasets/ds003626/versions/2.1.0/download) instructions.
 (the downloaded folder should be placed into the project folder and be renamed to 'dataset')
 
+[latex](https://sharelatex.gwdg.de/project/6214980ed0e70d008e1712b8/invite/token/0ac8314082fe570c96281b0abaf636062d64c8e1d5bf696d?project_name=Inner%20Speech%20Dokumentation&user_first_name=Fabienne)
