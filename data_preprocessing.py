@@ -93,11 +93,6 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
     :return: preprocessed dataset
     :rtype: tensorflow 'Dataset'
     """
-    # one-hot targets
-    data = data.map(lambda input, target: (
-        input,
-        tf.one_hot(target, 4)
-    ))
     # map functions provided as arguments to data
     if type(functions) not in [list, tuple] and functions:
         functions = [functions]
@@ -113,7 +108,7 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
     return data
 
 
-def filter_interval(sample, interval, data_frequency):
+def filter_interval(sample, interval, data_frequency, apply_indices=[0]):
     """Cut out a specific interval from a sample of EEG-Data.
     
     :param sample: sample consisitng of channel_number * data_points
@@ -130,14 +125,35 @@ def filter_interval(sample, interval, data_frequency):
     :param data_frequency: specifies the frequency the provided data was
         measured at
     :type data_frequency: floating point number
+    :param apply_indices: specifies on what elemtents of sample to apply the
+        function, defaults to [0]
+    :type apply_indices: list of integers, optional
     :return: cut sample
     :rtype: tensor
     """
-    X, y = sample
+    sample = list(sample)
     start_index_interval = int(interval[0] * data_frequency)
     end_index_interval = int(interval[1] * data_frequency)
-    X = X[:, start_index_interval:end_index_interval]
-    return X, y
+    for index in apply_indices:
+        sample[index] = sample[index][:, start_index_interval:end_index_interval]
+    return sample
+
+
+def normalization(data, axis=2, epsilon=1e-8):
+    """Normalize numpy data.
+
+    :param data: dataset of eeg-data
+    :type data: numpy array of dimension [samples x channels x N]
+    :param axis: axis along which to normalize the data
+    :type axis: int or tuple of ints
+    :param epsilon: epsilon to prevent division by zero
+    :type epsilon: float
+    :return: normalized dataset
+    :rtype: numpy array
+    """
+    mean, variance = np.mean(data, axis=axis), np.var(data, axis=axis)
+    data_normed = (data - mean[:, :, np.newaxis]) / np.sqrt(variance + epsilon)[:, :, np.newaxis]
+    return data_normed
 
 
 def split_dataset(dataset, splits={'train': 0.7,
@@ -171,20 +187,3 @@ def split_dataset(dataset, splits={'train': 0.7,
             datasets[key] = datasets[key].take(int(batch_number * proportion))
             take += int(batch_number * proportion)
     return datasets
-
-
-def normalization(data, axis=2, epsilon=1e-8):
-    """Normalize numpy data.
-
-    :param data: dataset of eeg-data
-    :type data: numpy array of dimension [samples x channels x N]
-    :param axis: axis along which to normalize the data
-    :type axis: int or tuple of ints
-    :param epsilon: epsilon to prevent division by zero
-    :type epsilon: float
-    :return: normalized dataset
-    :rtype: numpy array
-    """
-    mean, variance = np.mean(data, axis=axis), np.var(data, axis=axis)
-    data_normed = (data - mean[:, :, np.newaxis]) / np.sqrt(variance + epsilon)[:, :, np.newaxis]
-    return data_normed
