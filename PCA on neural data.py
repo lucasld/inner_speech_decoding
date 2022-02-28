@@ -12,7 +12,7 @@ from matplotlib.lines import Line2D
 from mpl_toolkits.mplot3d import Axes3D
 
 # load data
-data, events = dp.load_data(subjects=[1])
+data, events = dp.load_data(subjects=[1,2,3,4,5,6,7,8,9,10,11])
 data, events = dp.choose_condition(data, events, 'inner speech')
 #data, events = dp.filter_interval((data[1], events[1]), [1, 3.5], 256)
 
@@ -63,13 +63,5 @@ ppl.variance(pca2)
 ppl.scatter(Xa_p, t_type_ind)
 ppl.plot(Xa_p, 3, trial_size, time)
 
-# trial concatenated
-Xc = pp.trial_concat(trials, standardised=True)
-pca3 = PCA(n_components=n_components)
-Xcp = pca3.fit_transform(Xc.T).T
-print(Xc.shape)
-print(Xcp.shape)
 
-ppl.variance(pca3)
-ppl.scatter(Xcp, t_type_ind)
 
