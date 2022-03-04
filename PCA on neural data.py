@@ -53,11 +53,12 @@ ppl.variance(pca1)
 ppl.scatter(Xp, t_type_ind)
 
 # trial averaged PCA
-Xa = pp.trial_average(trials, t_type_ind, standardised=True)
+Xa, events = pp.trial_average(trials, t_type_ind, standardised=True)
 pca2 = PCA(n_components=n_components)
 Xa_p = pca2.fit_transform(Xa.T).T
 
 print(Xa.shape)
+print(events.shape)
 print(Xa_p.shape)
 ppl.variance(pca2)
 ppl.scatter(Xa_p, t_type_ind)

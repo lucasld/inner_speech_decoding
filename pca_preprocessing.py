@@ -24,18 +24,16 @@ def trial_response(trials, start_action, end_action, standardised=False):
 
 
 # trial average data
-def trial_average(trials, t_type_ind, standardised=False):
+def trial_average(trials, t_type_ind, standardised=False, trial_types = [0, 1, 2, 3]):
     trial_averages = []
+    trial_size = trials[0].shape[1]
+    event = []
     for ind in t_type_ind:
         trial_averages.append(np.array(trials)[ind].mean(axis=0))
     data = np.hstack(trial_averages)
+    for type in trial_types:
+        event.append([type]*trial_size)
+    event = np.hstack(event)
     if standardised:
         data = z_score(data)
-    return data
-
-# trial concatenated data
-def trial_concat(trials, standardised=False):
-    data = np.vstack([t[:] for t in trials]).T
-    if standardised:
-        data = z_score(data)
-    return data
+    return data, np.array(event)
