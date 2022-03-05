@@ -16,87 +16,90 @@ from tensorflow.keras import Sequential
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Conv2D, Flatten, Dropout, Normalization, LeakyReLU, Activation, BatchNormalization, MaxPool2D
 
+
 class ConvNet2(Model):
 
-  def __init__(self):
-    """
-    init: constructor of model
-    call: performs forward pass of model
-    """
-    super(ConvNet2, self).__init__()
+    def __init__(self):
+        """
+        init: constructor of model
+        call: performs forward pass of model
+        """
+        super(ConvNet2, self).__init__()
 
-    self.layer_list = [
-      Conv2D(filters=64, kernel_size=(3,3)),
-      LeakyReLU(),
-      Dropout(0.3),
-      Conv2D(filters=128, kernel_size=(3,3)),
-      BatchNormalization(),
-      LeakyReLU(),
-      MaxPool2D(),
-      Conv2D(filters=128, kernel_size=(3,3)),
-      LeakyReLU(),
-      Dropout(0.3),
-      MaxPool2D(),
-      Conv2D(filters=64, kernel_size=(3,3)),
-      BatchNormalization(),
-      LeakyReLU(),
-      Dropout(0.3),
-      MaxPool2D(),
-      Conv2D(filters=32, kernel_size=(3,3)),
-      BatchNormalization(),
-      LeakyReLU(),
-      MaxPool2D(),
-      Flatten(),
-      Dense(4, activation='softmax')
-    ]
+        self.layer_list = [
+            Conv2D(filters=64, kernel_size=(3,3)),
+            LeakyReLU(),
+            Dropout(0.3),
+            Conv2D(filters=128, kernel_size=(3,3)),
+            BatchNormalization(),
+            LeakyReLU(),
+            MaxPool2D(),
+            Conv2D(filters=128, kernel_size=(3,3)),
+            LeakyReLU(),
+            Dropout(0.3),
+            MaxPool2D(),
+            Conv2D(filters=64, kernel_size=(3,3)),
+            BatchNormalization(),
+            LeakyReLU(),
+            Dropout(0.3),
+            MaxPool2D(),
+            Conv2D(filters=32, kernel_size=(3,3)),
+            BatchNormalization(),
+            LeakyReLU(),
+            MaxPool2D(),
+            Flatten(),
+            Dense(4, activation='softmax')
+        ]
 
-  @tf.function
-  def call(self, inputs, training=None) -> tf.Tensor:
+    @tf.function
+    def call(self, inputs, training=None) -> tf.Tensor:
 
-    """ Computes a forward step with the given data
-    Parameters
-    ----------
-    inputs : tf.Tensor
-        the input for the model
-    training : bool
-        true if call has been made from train_step, which tells the dropout layer to be active 
-    Returns
-    ----------
-    x : tf.Tensor
-        the output of the model
-    """
-    x = inputs
-    for layer in self.layer_list:
-      x = layer(x)
-    return x
+        """ Computes a forward step with the given data
+        Parameters
+        ----------
+        inputs : tf.Tensor
+            the input for the model
+        training : bool
+            true if call has been made from train_step, which tells the dropout layer to be active 
+        Returns
+        ----------
+        x : tf.Tensor
+            the output of the model
+        """
+        x = inputs
+        for layer in self.layer_list:
+            x = layer(x)
+        return x
 
-model = Sequential(
-    [
-     Conv2D(filters=64, kernel_size=(3,3)),
-     LeakyReLU(),
-     Dropout(0.3),
-     Conv2D(filters=128, kernel_size=(3,3)),
-     BatchNormalization(),
-     LeakyReLU(),
-     MaxPool2D(),
-     Conv2D(filters=128, kernel_size=(3,3)),
-     LeakyReLU(),
-     Dropout(0.3),
-     MaxPool2D(),
-     Conv2D(filters=64, kernel_size=(3,3)),
-     BatchNormalization(),
-     LeakyReLU(),
-     Dropout(0.3),
-     MaxPool2D(),
-     Conv2D(filters=32, kernel_size=(3,3)),
-     BatchNormalization(),
-     LeakyReLU(),
-     MaxPool2D(),
-     Flatten(),
-     Dense(4, activation='softmax')
-    ], name='ConvNet2'  
-) 
-x = tf.ones((1, 630, 50,25))
-y = model(x)
-model.summary()
+
+if __name__ == '__main__':
+    model = Sequential(
+        [
+        Conv2D(filters=64, kernel_size=(3,3)),
+        LeakyReLU(),
+        Dropout(0.3),
+        Conv2D(filters=128, kernel_size=(3,3)),
+        BatchNormalization(),
+        LeakyReLU(),
+        MaxPool2D(),
+        Conv2D(filters=128, kernel_size=(3,3)),
+        LeakyReLU(),
+        Dropout(0.3),
+        MaxPool2D(),
+        Conv2D(filters=64, kernel_size=(3,3)),
+        BatchNormalization(),
+        LeakyReLU(),
+        Dropout(0.3),
+        MaxPool2D(),
+        Conv2D(filters=32, kernel_size=(3,3)),
+        BatchNormalization(),
+        LeakyReLU(),
+        MaxPool2D(),
+        Flatten(),
+        Dense(4, activation='softmax')
+        ], name='ConvNet2'  
+    ) 
+    x = tf.ones((1, 630, 50,25))
+    y = model(x)
+    model.summary()
 
