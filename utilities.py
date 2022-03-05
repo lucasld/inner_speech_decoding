@@ -27,16 +27,6 @@ def plot_eeg_data(sample):
 
 
 class TrainingGrapher:
-    def __init__(self):
-        plt.ion()
-        self.graph = plt.plot([], [])[0]
-    
-    def update(self, ydata):
-        self.graph.set_ydata(ydata)
-        plt.draw()
-
-
-class TrainingGrapher:
     def __init__(self, *args, name=None, supxlabel=None, supylabel=None, axs_xlabels=None, axs_ylabels=None, x_scale=None, y_scale=None):
         self.x_scale = x_scale
         self.y_scale = y_scale
@@ -72,15 +62,18 @@ class TrainingGrapher:
     def axs_setting(ylabel, xlabel):
         pass
     
-    def update(self, xdata, ydata):
-        for i, (line, xd, yd) in enumerate(zip(self.lines, xdata, ydata), 1):
+    def update(self, *data):
+        if len(data) > 1:
+            xdata, ydata = data
+        else:
+            ydata = data[0]
+            xdata = [list(range(len(e))) for e in ydata]
+        for i, (line, xd, yd) in enumerate(zip(self.lines, xdata, ydata)):
             line.set_data(xd, yd)
             # autoscaling if necesarry
-            if not self.x_scale or (self.x_scale[i%self.plot_shape[1]][i//self.plot_shape[0]] is None):
-                #print(min(yd), max(yd))
-                self.axs[i%self.plot_shape[1], i//self.plot_shape[0]].set_xlim(min(xd), max(xd))
-            if not self.y_scale or (self.y_scale[i%self.plot_shape[1]][i//self.plot_shape[0]] is None):
-                #print(min(yd), max(yd))
-                self.axs[i%self.plot_shape[1], i//self.plot_shape[0]].set_ylim(min(yd) - 0.002, max(yd) + 0.002)
+            if not self.x_scale or (self.x_scale[i%self.plot_shape[1]][i//self.plot_shape[1]] is None):
+                self.axs[i%self.plot_shape[1], i//self.plot_shape[1]].set_xlim(min(xd), max(xd))
+            if not self.y_scale or (self.y_scale[i%self.plot_shape[1]][i//self.plot_shape[1]] is None):
+                self.axs[i%self.plot_shape[1], i//self.plot_shape[1]].set_ylim(min(yd) - 0.002, max(yd) + 0.002)
         plt.pause(0.1)
         plt.show()
