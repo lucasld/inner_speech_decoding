@@ -60,7 +60,7 @@ def test(model, test_data, loss_function, acc_type):
     return test_loss, test_accuracy
 
 
-def accuracy(pred, target, type):
+def accuracy(pred, target, type='arg_max'):
     """Calucalte accuracy between a prediction and a target.
     
     :param pred: a prediction that the model made
@@ -139,3 +139,56 @@ def training(input_model, datasets, loss_function, optimizer, acc_type, epochs=1
     accuracies['test'] = test_accuracy    
 
     return losses, accuracies
+
+
+class Trainer:
+    def __init__(self, model, datasets,
+                 optimizer, loss_function, accuracy_function=None):
+        self.model = model
+        self.datasets = datasets
+        self.optimizer = optimizer
+        self.loss_function = loss_function
+        self.accuracy_function = accuracy_function
+        # Metrics
+        self.losses = {'train':[], 'test':[], 'valid':[]}
+        self.accuracies = {'test':[], 'valid':[]}
+
+    def train_epoch(self):
+        # lists that aggregate the loss and accuracy for each batch
+        loss_agg = []
+        for input_batch, target_batch in self.datasets['train']:
+            batch_loss = self.train_step(
+                input_batch,
+                target_batch
+            )
+            loss_agg.append(batch_loss)
+        self.losses['train'].append(float(tf.reduce_mean(loss_agg)))
+        # test
+        test_loss, test_acc = self.test('test')
+        self.losses['test'].append(float(test_loss))
+        self.accuracies['test'].append(float(test_acc))
+
+
+    def train_step(self, X, y):
+        with tf.GradientTape() as tape:
+            prediction = self.model(X)
+            loss = self.loss_function(y, prediction)
+        gradients = tape.gradient(loss, self.model.trainable_variables)
+        # apply gradients to the trainable variables using optimizer
+        self.optimizer.apply_gradients(
+            zip(gradients, self.model.trainable_variables)
+        )
+        return loss
+    
+    def test(self, data_key):
+        data = self.datasets[data_key]
+        loss_agg = []
+        acc_agg = []
+        for input, target in data:
+            output = self.model(input)
+            loss_agg.append(self.loss_function(output, target))
+            if self.accuracy_function: acc_agg.append(self.accuracy_function(output, target))
+        loss = tf.reduce_mean(loss_agg)
+        acc = tf.reduce_mean(acc_agg)
+        return loss, acc
+
