@@ -108,6 +108,8 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
     return data
 
 
+
+
 def filter_interval(sample, interval, data_frequency, apply_indices=[0]):
     """Cut out a specific interval from a sample of EEG-Data.
     
@@ -140,7 +142,7 @@ def filter_interval(sample, interval, data_frequency, apply_indices=[0]):
 
 
 def normalization(data, axis=2, epsilon=1e-8):
-    """Normalize numpy data.
+    """Normalize numpy data.  # z-score standartization
 
     :param data: dataset of eeg-data
     :type data: numpy array of dimension [samples x channels x N]
@@ -157,8 +159,8 @@ def normalization(data, axis=2, epsilon=1e-8):
 
 
 def split_dataset(dataset, splits={'train': 0.7,
-                                      'test': 0.15,
-                                      'valid': 0.15}):
+                                   'test': 0.15,
+                                   'valid': 0.15}):
     """Split a tensorflow dataset into n subsets.
 
     :param dataset: dataset to be split up
