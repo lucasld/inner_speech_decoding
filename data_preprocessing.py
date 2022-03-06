@@ -109,8 +109,33 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
 
 
 
+def filter_interval(data, interval, data_frequency):
+    """Cut out a specific interval from a sample of EEG-Data.
+    
+    :param data: dataset of shape [samples x channels x time]
+    :type data: numpy.array
+    :param interval: two values specifying the starting and end point in
+        seconds of the interval to be cut out.
+        Each sample consists of a 4.5 second EEG-data window.
+        These 4.5 seconds consist of:
+        Concentration Interval - 0.5 s
+        Cue Interval - 0.5 s
+        Action Interval - 2.5 s
+        Relac Interval - 1 s
+    :type interval: list of two floating point numbers
+    :param data_frequency: specifies the frequency the provided data was
+        measured at
+    :type data_frequency: floating point number
+    :return: cut sample
+    :rtype: tensor
+    """ 
+    start_index_interval = int(interval[0] * data_frequency)
+    end_index_interval = int(interval[1] * data_frequency)
+    data = data[:, :, start_index_interval:end_index_interval]
+    return data
 
-def filter_interval(sample, interval, data_frequency, apply_indices=[0]):
+
+def filter_interval_tensor(sample, interval, data_frequency, apply_indices=[0]):
     """Cut out a specific interval from a sample of EEG-Data.
     
     :param sample: sample consisitng of channel_number * data_points
