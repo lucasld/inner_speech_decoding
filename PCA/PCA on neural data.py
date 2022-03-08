@@ -66,3 +66,5 @@ ppl.plot(Xa_p, 3, trial_size, time)
 
 
 
+
+
