@@ -37,3 +37,9 @@ def trial_average(trials, t_type_ind, standardised=False, trial_types = [0, 1, 2
     if standardised:
         data = z_score(data)
     return data, np.array(event)
+
+def flat_pca(data):
+    flat_data = []
+    for elem in data:
+        flat_data.append(elem.reshape(len(elem[0]*len(elem[1]))))
+    return flat_data
