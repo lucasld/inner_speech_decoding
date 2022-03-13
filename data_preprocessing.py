@@ -1,6 +1,8 @@
 import mne
 import numpy as np
 import tensorflow as tf
+import sklearn
+from scipy import stats
 
 import utilities
 
@@ -102,7 +104,7 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
     # cache the dataset
     data = data.cache()
     # shuffle, batch and prefetch the dataset
-    data = data.shuffle(1000)
+    data = data.shuffle(10_000)
     data = data.batch(batch_size)
     data = data.prefetch(100)
     return data
@@ -214,3 +216,36 @@ def split_dataset(dataset, splits={'train': 0.7,
             datasets[key] = datasets[key].take(int(batch_number * proportion))
             take += int(batch_number * proportion)
     return datasets
+
+
+def create_datasets(path, splits={'train':0.7, 'test':0.15, 'valid':0.15},
+                    batch_size=12):
+    data, events = load_data()
+    data, events = choose_condition(data, events, 'inner speech')
+    events = events[:, 1]
+    data = filter_interval(data, interval=[1, 3.5], data_frequency=256)
+    data = stats.zscore(data, axis=1)
+    # shuffle data
+    data, events = sklearn.utils.shuffle(data, events)
+
+    # split data
+    train_index = int(0.70 * data.shape[0])
+    test_index = int(0.85 * data.shape[0])
+    valid_index = int(1 * data.shape[0])
+    inputs = np.split(data, [train_index, test_index, valid_index])
+    targets = np.split(events, [train_index, test_index, valid_index])
+    datasets = {'train':(inputs[0],targets[0]),
+                'test':(inputs[1],targets[1]),
+                'valid':(inputs[2],targets[2])}
+    for key, (data, events) in datasets.items():
+        dataset = tf.data.Dataset.from_tensor_slices((data, events))
+        dataset = preprocessing_pipeline(
+            dataset,
+            functions = [lambda sample:(sample[0], tf.one_hot(sample[1], 4)),
+                         lambda sample: (tf.reshape(sample[0], (128, 640, 1)),
+                                        sample[1])
+                        ],
+            args = [[], []],
+            batch_size = batch_size
+        )
+        tf.data.experimental.save(dataset, f'{path}/{key}')
