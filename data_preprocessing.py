@@ -100,7 +100,7 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
         functions = [functions]
         args = [args]
     for func, arg in zip(functions, args) if functions else []:
-        data = data.map(lambda input, target: func((input, target), *arg))
+        data = data.map(lambda *map_data: func(map_data, *arg))
     # cache the dataset
     data = data.cache()
     # shuffle, batch and prefetch the dataset
@@ -218,8 +218,8 @@ def split_dataset(dataset, splits={'train': 0.7,
     return datasets
 
 
-def create_datasets(path, splits={'train':0.7, 'test':0.15, 'valid':0.15},
-                    batch_size=12):
+def create_datasets(path, splits={'train':0.8, 'test':0.1, 'valid':0.1},
+                    batch_size=12, augmentation_pipeline=None):
     data, events = load_data()
     data, events = choose_condition(data, events, 'inner speech')
     events = events[:, 1]
@@ -238,13 +238,17 @@ def create_datasets(path, splits={'train':0.7, 'test':0.15, 'valid':0.15},
                 'test':(inputs[1],targets[1]),
                 'valid':(inputs[2],targets[2])}
     for key, (data, events) in datasets.items():
-        dataset = tf.data.Dataset.from_tensor_slices((data, events))
+        if key == 'train' and augmentation_pipeline:
+            data, clean_data,  events = augmentation_pipeline(data, events)
+        else:
+            clean_data = data
+        dataset = tf.data.Dataset.from_tensor_slices((data, clean_data, events))
         dataset = preprocessing_pipeline(
             dataset,
-            functions = [lambda sample:(sample[0], tf.one_hot(sample[1], 4)),
+            functions = [lambda sample: (sample[0], sample[1], tf.one_hot(sample[2], 4)),
                          lambda sample: (tf.reshape(sample[0], (128, 640, 1)),
-                                        sample[1])
-                        ],
+                                         tf.reshape(sample[1], (128, 640, 1)),
+                                         sample[2])],
             args = [[], []],
             batch_size = batch_size
         )
