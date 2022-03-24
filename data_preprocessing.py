@@ -7,7 +7,7 @@ from scipy import stats
 import utilities
 
 
-def load_data(subjects=range(1,11), path='./dataset'):
+def load_data(subjects=range(1,11), channels=None, path='./dataset'):
     """Load EEG-Data and Event-Data into a numpy array.
     
     :param subjects: array of subjects from which the sessions should be
@@ -18,7 +18,7 @@ def load_data(subjects=range(1,11), path='./dataset'):
     :return: eeg-data and event data in seperate arrays
     :rtype: tuple of two numpy arrays
     """
-    data_collection = np.empty((0, 128, 1153))
+    data_collection = np.empty((0, 128 if not channels else len(channels), 1153))
     events_collection = np.empty((0, 4), dtype=int)
     for sub in subjects:
         for ses in [1, 2, 3]:
@@ -30,6 +30,7 @@ def load_data(subjects=range(1,11), path='./dataset'):
                 # load data
                 file_name = path_part + '_eeg-epo.fif'
                 data = mne.read_epochs(file_name, verbose='WARNING')
+                if channels: data = data.pick_channels(channels)
                 data_collection = np.append(data_collection, data._data, axis=0)
 
                 # load events
@@ -219,8 +220,8 @@ def split_dataset(dataset, splits={'train': 0.7,
 
 
 def create_datasets(path, splits={'train':0.8, 'test':0.1, 'valid':0.1},
-                    batch_size=12, augmentation_pipeline=None):
-    data, events = load_data()
+                    batch_size=12, augmentation_pipeline=None, subjects=range(1,11)):
+    data, events = load_data(subjects=subjects)
     data, events = choose_condition(data, events, 'inner speech')
     events = events[:, 1]
     data = filter_interval(data, interval=[1, 3.5], data_frequency=256)
