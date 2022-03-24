@@ -191,4 +191,12 @@ class Trainer:
         loss = tf.reduce_mean(loss_agg)
         acc = tf.reduce_mean(acc_agg)
         return loss, acc
+    
+    def model_test(self, write=True):
+        train_test_loss, _ = self.test('train')
+        test_test_loss, test_test_acc = self.test('train')
+        self.losses['train'].append(train_test_loss)
+        self.losses['test'].append(test_test_loss)
+        self.accuracies['test'].append(test_test_acc)
+        return train_test_loss, test_test_loss, test_test_acc
 
