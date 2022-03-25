@@ -205,7 +205,7 @@ if __name__ == '__main__':
     pretrain_pairs = pretrain_pairs.shuffle(10_000)
     pretrain_pairs = pretrain_pairs.batch(BATCH_SIZE)
     pretrain_pairs = pretrain_pairs.prefetch(100)
-
+    print("TEST")
     for i, t in pretrain_pairs.take(1):
         print("SHAPE ############")
         print(tf.shape(i))
