@@ -215,12 +215,15 @@ if __name__ == '__main__':
     # n_events_pretrain = tf.data.Dataset.from_tensor_slices(events_pretrain)
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
     # mirrored_strategy = tf.distribute.MirroredStrategy() #["GPU:0", "GPU:1"]) # with mirrored_strategy.scope():
-    #with tf.device("/device:GPU:0"):
-    model_pretrain = EEGNet(nb_classes = 4, Chans = chans, Samples = samples, dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH, F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
-    #optimizer = tf.keras.optimizers.Adam()
+    with tf.device("/device:GPU:0"):
+        model_pretrain = EEGNet(nb_classes = 4, Chans = chans, Samples = samples, dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH, F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
+        optimizer = tf.keras.optimizers.Adam()
     #tf.config.run_functions_eagerly(True)
     #tf.data.experimental.enable_debug_mode()
-    model_pretrain.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    print(data_pretrain.shape)
+    print(events_pretrain.shape)
+    input('#######')
+    model_pretrain.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
     model_pretrain.fit(data_pretrain, events_pretrain, batch_size = BATCH_SIZE, epochs = EPOCHS, 
                       verbose = 1, class_weight = class_weights)
