@@ -200,18 +200,18 @@ if __name__ == '__main__':
     # pretrain model
     print("Pretraining...")
     #data_pretrain = data_pretrain.reshape((*data_pretrain.shape, 1))
-    pretrain_pairs = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain))
+    #pretrain_pairs = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain))
     # preprocess
     # cache the dataset
-    pretrain_pairs = pretrain_pairs.cache()
+    #pretrain_pairs = pretrain_pairs.cache()
     # shuffle, batch and prefetch the dataset
-    pretrain_pairs = pretrain_pairs.shuffle(10_000)
-    pretrain_pairs = pretrain_pairs.batch(BATCH_SIZE)
-    pretrain_pairs = pretrain_pairs.prefetch(100)
+    #pretrain_pairs = pretrain_pairs.shuffle(10_000)
+    #pretrain_pairs = pretrain_pairs.batch(BATCH_SIZE)
+    #pretrain_pairs = pretrain_pairs.prefetch(100)
     print("TEST")
-    for i, t in pretrain_pairs.take(1):
-        print("SHAPE ############")
-        print(tf.shape(i))
+    #for i, t in pretrain_pairs.take(1):
+    #    print("SHAPE ############")
+    #    print(tf.shape(i))
     # n_events_pretrain = tf.data.Dataset.from_tensor_slices(events_pretrain)
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
     # mirrored_strategy = tf.distribute.MirroredStrategy() #["GPU:0", "GPU:1"]) # with mirrored_strategy.scope():
@@ -220,7 +220,7 @@ if __name__ == '__main__':
         optimizer = tf.keras.optimizers.Adam()
     model_pretrain.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics = ['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
-    model_pretrain.fit(pretrain_pairs, epochs = EPOCHS, 
+    model_pretrain.fit(data_pretrain, events_pretrain, batch_size = BATCH_SIZE, epochs = EPOCHS, 
                       verbose = 1, class_weight = class_weights)
     print("Pretraining Done")
     probs = model_pretrain.predict(subject_data)
