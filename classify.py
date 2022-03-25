@@ -219,6 +219,7 @@ if __name__ == '__main__':
         model_pretrain = EEGNet(nb_classes = 4, Chans = chans, Samples = samples, dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH, F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
         optimizer = tf.keras.optimizers.Adam()
     tf.config.run_functions_eagerly(True)
+    tf.data.experimental.enable_debug_mode()
     model_pretrain.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics = ['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
     model_pretrain.fit(data_pretrain, events_pretrain, batch_size = BATCH_SIZE, epochs = EPOCHS, 
