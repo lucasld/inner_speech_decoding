@@ -119,10 +119,10 @@ def kfold_training_pretrained(data, labels, path, k=4):
         model = tf.keras.models.load_model(path)
         class_weights = {0:1, 1:1, 2:1, 3:1}
         # train, in each epoch train data is augmented
-        for _ in range(EPOCHS):
-            X_aug, Y_aug = augment_pipe(X_train, Y_train, noise)
-            model.fit(X_aug, Y_aug, batch_size = BATCH_SIZE, epochs = 1, 
-                      verbose = 1, validation_data=(X_test, Y_test), class_weight = class_weights)
+        model.fit(X_train, Y_train, batch_size = BATCH_SIZE,
+                  epochs = EPOCHS, verbose = 1,
+                  validation_data=(X_test, Y_test),
+                  class_weight = class_weights)
         # test trained model
         probs = model.predict(X_test)
         preds = probs.argmax(axis = -1)  
@@ -160,9 +160,9 @@ if __name__ == '__main__':
         if name == '-n': N_CHECKS = int(arg)
         if name == '-b': BATCH_SIZE = int(arg)
     # load data
-    subject_data, subject_events = dp.load_data(subjects=[SUBJECT])
-    # choose condition
-    subject_data, subject_events = dp.choose_condition(subject_data, subject_events, 'inner speech')
+    subject_data_all, subject_events_all = dp.load_data(subjects=[SUBJECT])
+    # choose condition    
+    subject_data, subject_events = dp.choose_condition(subject_data_all, subject_events_all, 'inner speech')
     # filter relevant column from events
     subject_events = subject_events[:,1]
     # one hot events
@@ -175,8 +175,13 @@ if __name__ == '__main__':
     ##### Comment Out if no pretraining necessary
     # load pretrain data
     data_pretrain, events_pretrain = dp.load_data(subjects=[1,2,3,4,5,6,7,9,10])
-    # choose condition
-    data_pretrain, events_pretrain = dp.choose_condition(data_pretrain, events_pretrain, 'inner speech')
+    # append all non 'inner-speech'-conditions from subject 8
+    for cond in ['pronounced speech', 'visualized condition']:
+        data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
+        data_pretrain = np.append(data_pretrain, data_subject_nis)
+        events_pretrain = np.append(events_pretrain, events_subject_nis)
+    # choose condition (test removed)
+    # data_pretrain, events_pretrain = dp.choose_condition(data_pretrain, events_pretrain, 'inner speech')
     # filter relevant column from events
     events_pretrain = events_pretrain[:,1]
     # one hot events
