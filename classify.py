@@ -207,13 +207,14 @@ if __name__ == '__main__':
     pretrain_pairs = pretrain_pairs.prefetch(100)
     #n_events_pretrain = tf.data.Dataset.from_tensor_slices(events_pretrain)
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    mirrored_strategy = tf.distribute.MirroredStrategy(["GPU:0", "GPU:1"])
     with mirrored_strategy.scope():
         model_pretrain = EEGNet(
             nb_classes = 4, Chans = chans, Samples = samples, 
             dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH,
             F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
-    model_pretrain.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
+        optimizer = tf.keras.optimizers.Adam()
+    model_pretrain.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics = ['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
     model_pretrain.fit(pretrain_pairs, epochs = EPOCHS, 
                       verbose = 1, class_weight = class_weights)
