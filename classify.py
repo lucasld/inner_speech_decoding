@@ -135,6 +135,9 @@ def kfold_training_pretrained(data, labels, path, k=4):
 
 if __name__ == '__main__':
     import os
+    gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+    for device in gpu_devices:
+        tf.config.experimental.set_memory_growth(device, True)
     #os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
     #print(os.getenv('TF_GPU_ALLOCATOR'))
 
@@ -209,14 +212,11 @@ if __name__ == '__main__':
     for i, t in pretrain_pairs.take(1):
         print("SHAPE ############")
         print(tf.shape(i))
-    #n_events_pretrain = tf.data.Dataset.from_tensor_slices(events_pretrain)
+    # n_events_pretrain = tf.data.Dataset.from_tensor_slices(events_pretrain)
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
-    mirrored_strategy = tf.distribute.MirroredStrategy(["GPU:0", "GPU:1"])
-    with mirrored_strategy.scope():
-        model_pretrain = EEGNet(
-            nb_classes = 4, Chans = chans, Samples = samples, 
-            dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH,
-            F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
+    # mirrored_strategy = tf.distribute.MirroredStrategy() #["GPU:0", "GPU:1"]) # with mirrored_strategy.scope():
+    with tf.device("/device:GPU:0"):
+        model_pretrain = EEGNet(nb_classes = 4, Chans = chans, Samples = samples, dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH, F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
         optimizer = tf.keras.optimizers.Adam()
     model_pretrain.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics = ['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
