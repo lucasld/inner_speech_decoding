@@ -1,3 +1,4 @@
+from asyncio import events
 from re import sub
 import sys, getopt
 import matplotlib.pyplot as plt
@@ -164,7 +165,7 @@ if __name__ == '__main__':
     # choose condition    
     subject_data, subject_events = dp.choose_condition(subject_data_all, subject_events_all, 'inner speech')
     # filter relevant column from events
-    subject_events = subject_events[:,1]
+    subject_events = subject_events[:, 1]
     # one hot events
     subject_events = np_utils.to_categorical(subject_events, num_classes=4)
     # normlize data
@@ -178,12 +179,13 @@ if __name__ == '__main__':
     # append all non 'inner-speech'-conditions from subject 8
     for cond in ['pronounced speech', 'visualized condition']:
         data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
-        data_pretrain = np.append(data_pretrain, data_subject_nis)
-        events_pretrain = np.append(events_pretrain, events_subject_nis)
+        data_pretrain = np.append(data_pretrain, data_subject_nis, axis=0)
+        events_pretrain = np.append(events_pretrain, events_subject_nis, axis=0)
     # choose condition (test removed)
     # data_pretrain, events_pretrain = dp.choose_condition(data_pretrain, events_pretrain, 'inner speech')
     # filter relevant column from events
-    events_pretrain = events_pretrain[:,1]
+    print(events_pretrain.shape)
+    events_pretrain = events_pretrain[:, 1]
     # one hot events
     events_pretrain = np_utils.to_categorical(events_pretrain, num_classes=4)
     # normlize data
