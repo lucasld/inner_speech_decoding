@@ -134,10 +134,10 @@ def kfold_training_pretrained(data, labels, path, k=4):
 
 
 if __name__ == '__main__':
-    import os
-    gpu_devices = tf.config.experimental.list_physical_devices('GPU')
-    for device in gpu_devices:
-        tf.config.experimental.set_memory_growth(device, True)
+    #import os
+    #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+    #for device in gpu_devices:
+    #    tf.config.experimental.set_memory_growth(device, True)
     #os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
     #print(os.getenv('TF_GPU_ALLOCATOR'))
 
