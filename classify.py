@@ -134,6 +134,10 @@ def kfold_training_pretrained(data, labels, path, k=4):
 
 
 if __name__ == '__main__':
+    import os
+    os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
+    print(os.getenv('TF_GPU_ALLOCATOR'))
+
     EPOCHS = 40
     SUBJECT = 8
     DROPOUT = 0.8
