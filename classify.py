@@ -117,13 +117,15 @@ def kfold_training_pretrained(data, labels, path, k=4):
         # reshape
         X_train = X_train.reshape(X_train.shape[0], chans, samples, kernels)
         X_test = X_test.reshape(X_test.shape[0], chans, samples, kernels)
-        model = tf.keras.models.load_model(path)
-        class_weights = {0:1, 1:1, 2:1, 3:1}
-        # train, in each epoch train data is augmented
-        model.fit(X_train, Y_train, batch_size = BATCH_SIZE,
-                  epochs = EPOCHS, verbose = 1,
-                  validation_data=(X_test, Y_test),
-                  class_weight = class_weights)
+        mirrored_strategy = tf.distribute.MirroredStrategy()
+        with mirrored_strategy.scope():
+            model = tf.keras.models.load_model(path)
+            class_weights = {0:1, 1:1, 2:1, 3:1}
+            # train, in each epoch train data is augmented
+            model.fit(X_train, Y_train, batch_size = BATCH_SIZE,
+                    epochs = EPOCHS, verbose = 1,
+                    validation_data=(X_test, Y_test),
+                    class_weight = class_weights)
         # test trained model
         probs = model.predict(X_test)
         preds = probs.argmax(axis = -1)  
@@ -182,14 +184,12 @@ if __name__ == '__main__':
 
     ##### Comment Out if no pretraining necessary
     # load pretrain data
-    data_pretrain, events_pretrain = dp.load_data(subjects=[1,2,3])#,4,5,6,7,9,10])
+    data_pretrain, events_pretrain = dp.load_data(subjects=[1,2,3,4,5,6,7,9,10])
     # append all non 'inner-speech'-conditions from subject 8
     for cond in ['pronounced speech', 'visualized condition']:
         data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
         data_pretrain = np.append(data_pretrain, data_subject_nis, axis=0)
         events_pretrain = np.append(events_pretrain, events_subject_nis, axis=0)
-    # choose condition (test removed)
-    # data_pretrain, events_pretrain = dp.choose_condition(data_pretrain, events_pretrain, 'inner speech')
     # filter relevant column from events
     print(events_pretrain.shape)
     events_pretrain = events_pretrain[:, 1]
@@ -199,31 +199,11 @@ if __name__ == '__main__':
     data_pretrain = scipy.stats.zscore(data_pretrain, axis=1)
     # pretrain model
     print("Pretraining...")
-    #data_pretrain = data_pretrain.reshape((*data_pretrain.shape, 1))
-    #pretrain_pairs = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain))
-    # preprocess
-    # cache the dataset
-    #pretrain_pairs = pretrain_pairs.cache()
-    # shuffle, batch and prefetch the dataset
-    #pretrain_pairs = pretrain_pairs.shuffle(10_000)
-    #pretrain_pairs = pretrain_pairs.batch(BATCH_SIZE)
-    #pretrain_pairs = pretrain_pairs.prefetch(100)
-    print("TEST")
-    #for i, t in pretrain_pairs.take(1):
-    #    print("SHAPE ############")
-    #    print(tf.shape(i))
-    # n_events_pretrain = tf.data.Dataset.from_tensor_slices(events_pretrain)
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
-    mirrored_strategy = tf.distribute.MirroredStrategy() #["GPU:0", "GPU:1"]) # with mirrored_strategy.scope():
-    #with tf.device("/device:GPU:0"):
+    mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
         model_pretrain = EEGNet(nb_classes = 4, Chans = chans, Samples = samples, dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH, F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
         optimizer = tf.keras.optimizers.Adam()
-    #tf.config.run_functions_eagerly(True)
-    #tf.data.experimental.enable_debug_mode()
-    print(data_pretrain.shape)
-    print(events_pretrain.shape)
-    input('#######')
     model_pretrain.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
     model_pretrain.fit(data_pretrain, events_pretrain, batch_size = BATCH_SIZE, epochs = EPOCHS, 
