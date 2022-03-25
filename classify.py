@@ -196,7 +196,7 @@ if __name__ == '__main__':
     data_pretrain = scipy.stats.zscore(data_pretrain, axis=1)
     # pretrain model
     print("Pretraining...")
-    data_pretrain = data_pretrain.reshape((*data_pretrain.shape, 1))
+    #data_pretrain = data_pretrain.reshape((*data_pretrain.shape, 1))
     pretrain_pairs = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain))
     # preprocess
     # cache the dataset
@@ -205,6 +205,9 @@ if __name__ == '__main__':
     pretrain_pairs = pretrain_pairs.shuffle(10_000)
     pretrain_pairs = pretrain_pairs.batch(BATCH_SIZE)
     pretrain_pairs = pretrain_pairs.prefetch(100)
+
+    for i, t in pretrain_pairs.take(1):
+        print(tf.shape(i))
     #n_events_pretrain = tf.data.Dataset.from_tensor_slices(events_pretrain)
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
     mirrored_strategy = tf.distribute.MirroredStrategy(["GPU:0", "GPU:1"])
