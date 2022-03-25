@@ -135,8 +135,8 @@ def kfold_training_pretrained(data, labels, path, k=4):
 
 if __name__ == '__main__':
     import os
-    os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
-    print(os.getenv('TF_GPU_ALLOCATOR'))
+    #os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
+    #print(os.getenv('TF_GPU_ALLOCATOR'))
 
     EPOCHS = 40
     SUBJECT = 8
@@ -197,10 +197,12 @@ if __name__ == '__main__':
     # pretrain model
     print("Pretraining...")
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
-    model_pretrain = EEGNet(
-        nb_classes = 4, Chans = chans, Samples = samples, 
-        dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH,
-        F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+    with mirrored_strategy.scope():
+        model_pretrain = EEGNet(
+            nb_classes = 4, Chans = chans, Samples = samples, 
+            dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH,
+            F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
     model_pretrain.compile(loss='categorical_crossentropy', optimizer='adam', metrics = ['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
     model_pretrain.fit(data_pretrain, events_pretrain, batch_size = BATCH_SIZE, epochs = EPOCHS, 
