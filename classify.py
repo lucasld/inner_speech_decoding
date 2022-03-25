@@ -207,6 +207,7 @@ if __name__ == '__main__':
     pretrain_pairs = pretrain_pairs.prefetch(100)
 
     for i, t in pretrain_pairs.take(1):
+        print("SHAPE ############")
         print(tf.shape(i))
     #n_events_pretrain = tf.data.Dataset.from_tensor_slices(events_pretrain)
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
