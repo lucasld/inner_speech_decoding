@@ -1,5 +1,4 @@
-from asyncio import events
-from re import sub
+from curses.ascii import SUB
 import sys, getopt
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,9 +8,16 @@ import sklearn
 import scipy.stats
 from perlin_numpy import generate_perlin_noise_3d
 
-
 import data_preprocessing as dp
 from models.classifiers import EEGNet
+
+# Hyperparameters
+EPOCHS = 40
+SUBJECT_S = range(1,11)
+DROPOUT = 0.8
+KERNEL_LENGTH = 64
+N_CHECKS = 20
+BATCH_SIZE = 40
 
 
 def augment_pipe(data, events, noise):
@@ -93,10 +99,6 @@ def kfold_training_pretrained(data, labels, path, k=4):
     # create k data and label splits
     X = []
     Y = []
-    # create perlin noise
-    #noise = generate_perlin_noise_3d(
-    #    (data.shape[0], 128, 1200), (5, 4, 4), tileable=(True, False, False) #4, 4
-    #)
     noise = np.zeros(data.shape)
     # shuffle noise
     noise = np.random.default_rng().permutation(noise)[:, :, :data.shape[2]]
@@ -106,7 +108,7 @@ def kfold_training_pretrained(data, labels, path, k=4):
         X.append(data[int(n/k * i):int(n/k * i + n/k)])
         Y.append(labels[int(n/k * i):int(n/k * i + n/k)])
     
-    kfold_acc = []
+    k_history = []
     for k_i in range(k):
         # concat k-1 splits
         X_train = np.concatenate([d for j, d in enumerate(X) if j != i])
@@ -122,69 +124,43 @@ def kfold_training_pretrained(data, labels, path, k=4):
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
             # train, in each epoch train data is augmented
-            model.fit(X_train, Y_train, batch_size = BATCH_SIZE,
-                    epochs = EPOCHS, verbose = 1,
-                    validation_data=(X_test, Y_test),
-                    class_weight = class_weights)
-        # test trained model
-        probs = model.predict(X_test)
-        preds = probs.argmax(axis = -1)  
-        acc = np.mean(preds == Y_test.argmax(axis=-1))
-        print("Classification accuracy: %f " % (acc))
-        kfold_acc.append(acc)
-    return kfold_acc
+            hist = model.fit(X_train, Y_train, batch_size = BATCH_SIZE,
+                            epochs = EPOCHS, verbose = 1,
+                            validation_data=(X_test, Y_test),
+                            class_weight = class_weights)
+        k_history.append(hist.history)
+    return k_history
+
+# + testen obs so geht +
+# subject training vereinzeln
+
+# dataset preloaden und nicht bei jedem subject erneut
+# history plotten / speichern
+# model loading in kfold_training verbessern mit cloning erweitern
 
 
-if __name__ == '__main__':
-    #import os
-    #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
-    #for device in gpu_devices:
-    #    tf.config.experimental.set_memory_growth(device, True)
-    #os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
-    #print(os.getenv('TF_GPU_ALLOCATOR'))
-
-    EPOCHS = 40
-    SUBJECT = 8
-    DROPOUT = 0.8
-    KERNEL_LENGTH = 64
-    N_CHECKS = 20
-    BATCH_SIZE = 40
-
-    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:")
-    print(opts)
-    for name, arg in opts:
-        """ # Python 3.10
-        match name:
-            case '-e': EPOCHS = int(arg)
-            case '-s': SUBJECT = int(arg)
-            case '-d': DROPOUT = float(arg)
-            case '-k': KERNEL_LENGTH = int(arg)
-            case '-n': N_CHECKS = int(arg)
-            case '-b': BATCH_SIZE = int(arg)
-        """
-        # < Python 3.10
-        if name == '-e': EPOCHS = int(arg)
-        if name == '-s': SUBJECT = int(arg)
-        if name == '-d': DROPOUT = float(arg)
-        if name == '-k': KERNEL_LENGTH = int(arg)
-        if name == '-n': N_CHECKS = int(arg)
-        if name == '-b': BATCH_SIZE = int(arg)
+def subject_train_test_average(subject, epochs=EPOCHS,
+                              dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
+                              batch_size=BATCH_SIZE, n_checks=N_CHECKS):
+    print(f"TESTING SUBJECT {subject}")
     # load data
-    subject_data_all, subject_events_all = dp.load_data(subjects=[SUBJECT])
+    subject_data_all, subject_events_all = dp.load_data(subjects=[subject])
     # choose condition    
-    subject_data, subject_events = dp.choose_condition(subject_data_all, subject_events_all, 'inner speech')
+    subject_data, subject_events = dp.choose_condition(subject_data_all,
+                                                        subject_events_all,
+                                                        'inner speech')
     # filter relevant column from events
     subject_events = subject_events[:, 1]
     # one hot events
     subject_events = np_utils.to_categorical(subject_events, num_classes=4)
     # normlize data
     subject_data = scipy.stats.zscore(subject_data, axis=1)
-    # k fold test n_checks times to average accuracy over many different splits
-    acc_accumulator = []
-
     ##### Comment Out if no pretraining necessary
     # load pretrain data
-    data_pretrain, events_pretrain = dp.load_data(subjects=[1,2,3,4,5,6,7,9,10])
+    pretrain_subjects = list(range(1,11))
+    pretrain_subjects.remove(subject)
+    print(pretrain_subjects)
+    data_pretrain, events_pretrain = dp.load_data(subjects=pretrain_subjects)
     # append all non 'inner-speech'-conditions from subject 8
     for cond in ['pronounced speech', 'visualized condition']:
         data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
@@ -199,15 +175,21 @@ if __name__ == '__main__':
     data_pretrain = scipy.stats.zscore(data_pretrain, axis=1)
     # pretrain model
     print("Pretraining...")
-    kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
+    _, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
-        model_pretrain = EEGNet(nb_classes = 4, Chans = chans, Samples = samples, dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH, F1 = 8, D = 2, F2 = 16, dropoutType = 'Dropout')
+        model_pretrain = EEGNet(nb_classes = 4, Chans = chans,
+                                Samples = samples, dropoutRate = dropout,
+                                kernLength = kernel_length, F1 = 8, D = 2,
+                                F2 = 16, dropoutType = 'Dropout')
         optimizer = tf.keras.optimizers.Adam()
-    model_pretrain.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+    model_pretrain.compile(loss='categorical_crossentropy',
+                            optimizer=optimizer,
+                            metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
-    model_pretrain.fit(data_pretrain, events_pretrain, batch_size = BATCH_SIZE, epochs = EPOCHS, 
-                      verbose = 1, class_weight = class_weights)
+    model_pretrain.fit(data_pretrain, events_pretrain,
+                        batch_size=batch_size, epochs=epochs, 
+                        verbose = 1, class_weight = class_weights)
     print("Pretraining Done")
     probs = model_pretrain.predict(subject_data)
     preds = probs.argmax(axis = -1)  
@@ -217,40 +199,57 @@ if __name__ == '__main__':
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
     #####
-
-    for n in range(N_CHECKS):
+    # accumulate all training accs and losses
+    history_accumulator = []
+    for n in range(n_checks):
         # kacc = kfold_training(subject_data, subject_events)
-        kacc = kfold_training_pretrained(subject_data, subject_events, path)
-        acc_accumulator += kacc
+        k_history = kfold_training_pretrained(subject_data, subject_events, path)
+        history_accumulator += k_history
         print("N: ", n, "     ######################\n\n")
-        print("Mean for K Folds:", np.mean(kacc))
-        print("New Total Mean:", np.mean(acc_accumulator))
+        print("Mean for K Folds:", np.mean([h['val_accuracy'][-1] for h in k_history]))
+        print("New Total Mean:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
     # save progress
     print("Parameter Test Done")
-    print("Average Accuracy:", np.mean(acc_accumulator))
-    print(acc_accumulator)
+    print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
+    print(history_accumulator)
     print("Parameters")
-    print("EPOCHS:", EPOCHS)
-    print("SUBJECT:", SUBJECT)
-    print("DROPOUT", DROPOUT)
-    print("KERNEL_LENGTH", KERNEL_LENGTH)
-    print("N_CHECKS", N_CHECKS)
-    print("BATCH SIZE", BATCH_SIZE)
- 
+    print("EPOCHS:", epochs)
+    print("SUBJECT:", subject)
+    print("DROPOUT", dropout)
+    print("KERNEL_LENGTH", kernel_length)
+    print("N_CHECKS", n_checks)
+    print("BATCH SIZE", batch_size)
+    f = open("results.txt", "a")
+    f.write('\n'.join([f'Subject {subject}', f"Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in history_accumulator])}", f'{history_accumulator}', "\n\n\n"]))
+    f.close()
+    return history_accumulator
 
 
-
-
-
-"""
-Parameter Test Done
-Average Accuracy: 0.24625000000000002
-[0.32, 0.3, 0.26, 0.28, 0.32, 0.26, 0.28, 0.34, 0.28, 0.28, 0.3, 0.22, 0.22, 0.28, 0.22, 0.22, 0.3, 0.2, 0.22, 0.28, 0.18, 0.22, 0.16, 0.28, 0.36, 0.14, 0.28, 0.36, 0.12, 0.16, 0.34, 0.14, 0.2, 0.34, 0.34, 0.34, 0.24, 0.24, 0.28, 0.14, 0.1, 0.24, 0.24, 0.16, 0.28, 0.28, 0.22, 0.3, 0.24, 0.34, 0.36, 0.26, 0.26, 0.2, 0.26, 0.34, 0.3, 0.24, 0.32, 0.22, 0.22, 0.18, 0.22, 0.22, 0.22, 0.24, 0.22, 0.26, 0.12, 0.3, 0.26, 0.28, 0.34, 0.14, 0.14, 0.14, 0.3, 0.22, 0.16, 0.12]
-Parameters
-EPOCHS: 15
-SUBJECT: 8
-DROPOUT 0.8
-KERNEL_LENGTH 64
-N_CHECKS 20
-BATCH SIZE 25
-"""
+if __name__ == '__main__':
+    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:")
+    print(opts)
+    for name, arg in opts:
+        """ # Python 3.10
+        match name:
+            case '-e': EPOCHS = int(arg)
+            case '-s': SUBJECT = int(arg)
+            case '-d': DROPOUT = float(arg)
+            case '-k': KERNEL_LENGTH = int(arg)
+            case '-n': N_CHECKS = int(arg)
+            case '-b': BATCH_SIZE = int(arg)
+        """
+        # < Python 3.10
+        if name == '-e': EPOCHS = int(arg)
+        if name == '-s': SUBJECT_S = list(map(int, arg.split(',')))
+        if name == '-d': DROPOUT = float(arg)
+        if name == '-k': KERNEL_LENGTH = int(arg)
+        if name == '-n': N_CHECKS = int(arg)
+        if name == '-b': BATCH_SIZE = int(arg)
+    for subject in SUBJECT_S:
+        subject_history = subject_train_test_average(subject, epochs=EPOCHS,
+            dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
+            n_checks=N_CHECKS, batch_size=BATCH_SIZE)
+        for h in subject_history:
+            plt.plot(h['val_accuracy'])
+        plt.savefig(f'subject_{subject}_kfold_accuracies.png')
+        plt.clf()
