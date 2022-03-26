@@ -144,7 +144,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
                               batch_size=BATCH_SIZE, n_checks=N_CHECKS):
     print(f"TESTING SUBJECT {subject}")
     # load data
-    subject_data_all, subject_events_all = dp.load_data(subjects=[subject])
+    subject_data_all, subject_events_all = dp.load_data(subjects=[subject]).astype(np.float16)
     # choose condition    
     subject_data, subject_events = dp.choose_condition(subject_data_all,
                                                         subject_events_all,
@@ -160,7 +160,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     pretrain_subjects = list(range(1,11))
     pretrain_subjects.remove(subject)
     print(pretrain_subjects)
-    data_pretrain, events_pretrain = dp.load_data(subjects=pretrain_subjects)
+    data_pretrain, events_pretrain = dp.load_data(subjects=pretrain_subjects).astype(np.float16)
     # append all non 'inner-speech'-conditions from subject 8
     for cond in ['pronounced speech', 'visualized condition']:
         data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
