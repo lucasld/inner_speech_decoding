@@ -155,7 +155,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     # one hot events
     subject_events = np_utils.to_categorical(subject_events, num_classes=4)
     # normlize data
-    subject_data = scipy.stats.zscore(subject_data, axis=1)
+    subject_data = scipy.stats.zscore(subject_data + 0.000_000_1, axis=1)
     ##### Comment Out if no pretraining necessary
     # load pretrain data
     pretrain_subjects = list(range(1,11))
@@ -173,7 +173,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     # one hot events
     events_pretrain = np_utils.to_categorical(events_pretrain, num_classes=4)
     # normlize data
-    data_pretrain = scipy.stats.zscore(data_pretrain, axis=1)
+    data_pretrain = scipy.stats.zscore(data_pretrain + 0.000_000_1, axis=1)
     # pretrain model
     print("Pretraining...")
     _, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
