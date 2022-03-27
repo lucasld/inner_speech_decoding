@@ -227,8 +227,8 @@ def subject_train_test_average(subject):
     history_accumulator = []
     for n in range(N_CHECKS):
         # clear gpu memory        
-        device = cuda.get_current_device()
-        device.reset()
+        #device = cuda.get_current_device()
+        #device.reset()
         # train k folds
         print("A")
         k_history = kfold_training_pretrained(subject_data, subject_events, path)
