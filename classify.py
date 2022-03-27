@@ -129,8 +129,10 @@ def kfold_training_pretrained(data, labels, path, k=4):
         print(3)
         options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
         print(4)
-        dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).with_options(options)
+        dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train))
         print(5)
+        dataset_train = dataset_train.with_options(options)
+        print(6)
         dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=BATCH_SIZE)
         print("D")
         # test dataset
