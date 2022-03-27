@@ -280,8 +280,8 @@ if __name__ == '__main__':
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
         subject_history = subject_train_test_average(subject)
-        #device = cuda.get_current_device()
-        #device.reset()
+        device = cuda.get_current_device()
+        device.reset()
         for h in subject_history:
             plt.plot(h['val_accuracy'])
         plt.savefig(f'subject_{subject}_kfold_accuracies.png')
