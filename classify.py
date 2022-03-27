@@ -124,14 +124,19 @@ def kfold_training_pretrained(data, labels, path, k=4):
         X_test = X_test.reshape(X_test.shape[0], chans, samples, kernels)
         options = tf.data.Options()
         options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-        dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).with_options(options)
-        dataset = dp.preprocessing_pipeline(dataset, batch_size=BATCH_SIZE)
+        dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).with_options(options)
+        dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=BATCH_SIZE)
+        # test dataset
+        dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test)).with_options(options)
+        dataset_test = dp.preprocessing_pipeline(dataset_test, batch_size=BATCH_SIZE)
         mirrored_strategy = tf.distribute.MirroredStrategy()
         with mirrored_strategy.scope():
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
             # train, in each epoch train data is augmented
-            hist = model.fit(dataset,epochs = EPOCHS, verbose = 1, validation_data=(X_test, Y_test), class_weight = class_weights)
+            hist = model.fit(dataset_train, epochs = EPOCHS, verbose = 1,
+                             validation_data=dataset_test,
+                             class_weight=class_weights)
         k_history.append(hist.history)
     return k_history
 
@@ -209,7 +214,10 @@ def subject_train_test_average(subject):
     # accumulate all training accs and losses
     history_accumulator = []
     for n in range(N_CHECKS):
-        # kacc = kfold_training(subject_data, subject_events)
+        # clear gpu memory        
+        device = cuda.get_current_device()
+        device.reset()
+        # train k folds
         k_history = kfold_training_pretrained(subject_data, subject_events, path)
         history_accumulator += k_history
         print("N: ", n, "     ######################\n\n")
