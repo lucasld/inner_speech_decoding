@@ -97,7 +97,6 @@ def kfold_training_pretrained(data, labels, path, k=4):
     
     data, labels are correspond to the subject to be tested
     """
-    tf.keras.backend.clear_session()
     data, labels = sklearn.utils.shuffle(data, labels)
     # create k data and label splits
     X = []
@@ -113,11 +112,12 @@ def kfold_training_pretrained(data, labels, path, k=4):
     
     k_history = []
     for k_i in range(k):
+        tf.keras.backend.clear_session()
         # concat k-1 splits
-        X_train = np.concatenate([d for j, d in enumerate(X) if j != i])
-        Y_train = np.concatenate([d for j, d in enumerate(Y) if j != i])
-        X_test = X[i]
-        Y_test = Y[i]
+        X_train = np.concatenate([d for j, d in enumerate(X) if j != k_i])
+        Y_train = np.concatenate([d for j, d in enumerate(Y) if j != k_i])
+        X_test = X[k_i]
+        Y_test = Y[k_i]
         kernels, chans, samples = 1, data.shape[1], data.shape[2]
         # reshape
         X_train = X_train.reshape(X_train.shape[0], chans, samples, kernels)
