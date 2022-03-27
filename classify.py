@@ -120,27 +120,18 @@ def kfold_training_pretrained(data, labels, path, k=4):
         Y_test = Y[i]
         kernels, chans, samples = 1, data.shape[1], data.shape[2]
         # reshape
-        print("C")
         X_train = X_train.reshape(X_train.shape[0], chans, samples, kernels)
-        print(1)
         X_test = X_test.reshape(X_test.shape[0], chans, samples, kernels)
-        print(2)
         options = tf.data.Options()
-        print(3)
         options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-        print(4)
         dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train))
-        print(5)
         dataset_train = dataset_train.with_options(options)
-        print(6)
         dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=BATCH_SIZE)
-        print("D")
         # test dataset
         dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test)).with_options(options)
         dataset_test = dp.preprocessing_pipeline(dataset_test, batch_size=BATCH_SIZE)
         mirrored_strategy = tf.distribute.MirroredStrategy()
         with mirrored_strategy.scope():
-            print("E")
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
             # train, in each epoch train data is augmented
@@ -230,7 +221,6 @@ def subject_train_test_average(subject):
         #device = cuda.get_current_device()
         #device.reset()
         # train k folds
-        print("A")
         k_history = kfold_training_pretrained(subject_data, subject_events, path)
         history_accumulator += k_history
         print("N: ", n, "     ######################\n\n")
@@ -242,7 +232,7 @@ def subject_train_test_average(subject):
     print(history_accumulator)
     print("Parameters")
     print("EPOCHS:", EPOCHS)
-    print("SUBJECT:", SUBJECT)
+    print("SUBJECT:", subject)
     print("DROPOUT", DROPOUT)
     print("KERNEL_LENGTH", KERNEL_LENGTH)
     print("N_CHECKS", N_CHECKS)
