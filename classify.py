@@ -97,7 +97,7 @@ def kfold_training_pretrained(data, labels, path, k=4):
     
     data, labels are correspond to the subject to be tested
     """
-
+    tf.keras.backend.clear_session()
     data, labels = sklearn.utils.shuffle(data, labels)
     # create k data and label splits
     X = []
@@ -125,16 +125,13 @@ def kfold_training_pretrained(data, labels, path, k=4):
         options = tf.data.Options()
         options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
         dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).with_options(options)
-        dataset = dp.preprocessing_pipeline(dataset)
+        dataset = dp.preprocessing_pipeline(dataset, batch_size=BATCH_SIZE)
         mirrored_strategy = tf.distribute.MirroredStrategy()
         with mirrored_strategy.scope():
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
             # train, in each epoch train data is augmented
-            hist = model.fit(dataset, batch_size = BATCH_SIZE,
-                            epochs = EPOCHS, verbose = 1,
-                            validation_data=(X_test, Y_test),
-                            class_weight = class_weights)
+            hist = model.fit(dataset,epochs = EPOCHS, verbose = 1, validation_data=(X_test, Y_test), class_weight = class_weights)
         k_history.append(hist.history)
     return k_history
 
@@ -146,13 +143,8 @@ def kfold_training_pretrained(data, labels, path, k=4):
 # model loading in kfold_training verbessern mit cloning erweitern
 
 
-subject_history = []
-# TF_GPU_ALLOCATOR=cuda_malloc_async
-def subject_train_test_average(subject, epochs=EPOCHS,
-                              dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
-                              batch_size=BATCH_SIZE, n_checks=N_CHECKS):
+def subject_train_test_average(subject):
     tf.keras.backend.clear_session()
-    print(epochs, dropout, kernel_length,batch_size, n_checks)
     print(f"TESTING SUBJECT {subject}")
     # load data
     subject_data_all, subject_events_all = dp.load_data(subjects=[subject])
@@ -191,19 +183,19 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
         model_pretrain = EEGNet(nb_classes = 4, Chans = chans,
-                                Samples = samples, dropoutRate = dropout,
-                                kernLength = kernel_length, F1 = 8, D = 2,
+                                Samples = samples, dropoutRate = DROPOUT,
+                                kernLength = KERNEL_LENGTH, F1 = 8, D = 2,
                                 F2 = 16, dropoutType = 'Dropout')
         optimizer = tf.keras.optimizers.Adam()
     options = tf.data.Options()
     options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
     dataset = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain)).with_options(options)
-    dataset = dp.preprocessing_pipeline(dataset, batch_size=batch_size)
+    dataset = dp.preprocessing_pipeline(dataset, batch_size=BATCH_SIZE)
     model_pretrain.compile(loss='categorical_crossentropy',
                             optimizer=optimizer,
                             metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
-    model_pretrain.fit(dataset, epochs=epochs, 
+    model_pretrain.fit(dataset, epochs=EPOCHS, 
                         verbose = 1, class_weight = class_weights)
     print("Pretraining Done")
     probs = model_pretrain.predict(subject_data)
@@ -216,7 +208,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     #####
     # accumulate all training accs and losses
     history_accumulator = []
-    for n in range(n_checks):
+    for n in range(N_CHECKS):
         # kacc = kfold_training(subject_data, subject_events)
         k_history = kfold_training_pretrained(subject_data, subject_events, path)
         history_accumulator += k_history
@@ -228,12 +220,12 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
     print(history_accumulator)
     print("Parameters")
-    print("EPOCHS:", epochs)
-    print("SUBJECT:", subject)
-    print("DROPOUT", dropout)
-    print("KERNEL_LENGTH", kernel_length)
-    print("N_CHECKS", n_checks)
-    print("BATCH SIZE", batch_size)
+    print("EPOCHS:", EPOCHS)
+    print("SUBJECT:", SUBJECT)
+    print("DROPOUT", DROPOUT)
+    print("KERNEL_LENGTH", KERNEL_LENGTH)
+    print("N_CHECKS", N_CHECKS)
+    print("BATCH SIZE", BATCH_SIZE)
     f = open("results.txt", "a")
     f.write('\n'.join([f'Subject {subject}', f"Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in history_accumulator])}", f'{history_accumulator}', "\n\n\n"]))
     f.close()
@@ -276,9 +268,6 @@ if __name__ == '__main__':
 
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
-        #p = multiprocessing.Process(target=subject_train_test_average, args=(subject, EPOCHS, DROPOUT, KERNEL_LENGTH, BATCH_SIZE, N_CHECKS))
-        #p.start()
-        #p.join()
         subject_history = subject_train_test_average(subject, epochs=EPOCHS,
             dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
             n_checks=N_CHECKS, batch_size=BATCH_SIZE)
