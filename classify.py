@@ -187,7 +187,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     # pretrain model
     print("Pretraining...")
     _, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy()#MirroredStrategy()
     with mirrored_strategy.scope():
         model_pretrain = EEGNet(nb_classes = 4, Chans = chans,
                                 Samples = samples, dropoutRate = dropout,
