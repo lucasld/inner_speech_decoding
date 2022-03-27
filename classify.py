@@ -105,7 +105,7 @@ def kfold_training_pretrained(data, labels, path, k=4):
     noise = np.zeros(data.shape)
     # shuffle noise
     noise = np.random.default_rng().permutation(noise)[:, :, :data.shape[2]]
-
+    print("B")
     for i in range(k):
         n, _, _ = data.shape
         X.append(data[int(n/k * i):int(n/k * i + n/k)])
@@ -120,17 +120,20 @@ def kfold_training_pretrained(data, labels, path, k=4):
         Y_test = Y[i]
         kernels, chans, samples = 1, data.shape[1], data.shape[2]
         # reshape
+        print("C")
         X_train = X_train.reshape(X_train.shape[0], chans, samples, kernels)
         X_test = X_test.reshape(X_test.shape[0], chans, samples, kernels)
         options = tf.data.Options()
         options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
         dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).with_options(options)
         dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=BATCH_SIZE)
+        print("D")
         # test dataset
         dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test)).with_options(options)
         dataset_test = dp.preprocessing_pipeline(dataset_test, batch_size=BATCH_SIZE)
         mirrored_strategy = tf.distribute.MirroredStrategy()
         with mirrored_strategy.scope():
+            print("E")
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
             # train, in each epoch train data is augmented
@@ -182,9 +185,11 @@ def subject_train_test_average(subject):
     events_pretrain = np_utils.to_categorical(events_pretrain, num_classes=4)
     # normlize data
     data_pretrain = scipy.stats.zscore(data_pretrain, axis=1)
+    # reshape
+    kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
+    data_pretrain = data_pretrain.reshape(data_pretrain.shape[0], chans, samples, kernels)
     # pretrain model
     print("Pretraining...")
-    _, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
         model_pretrain = EEGNet(nb_classes = 4, Chans = chans,
@@ -218,6 +223,7 @@ def subject_train_test_average(subject):
         device = cuda.get_current_device()
         device.reset()
         # train k folds
+        print("A")
         k_history = kfold_training_pretrained(subject_data, subject_events, path)
         history_accumulator += k_history
         print("N: ", n, "     ######################\n\n")
