@@ -151,6 +151,7 @@ subject_history = []
 def subject_train_test_average(subject, epochs=EPOCHS,
                               dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
                               batch_size=BATCH_SIZE, n_checks=N_CHECKS):
+    tf.keras.backend.clear_session()
     print(epochs, dropout, kernel_length,batch_size, n_checks)
     print(f"TESTING SUBJECT {subject}")
     # load data
@@ -187,7 +188,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     # pretrain model
     print("Pretraining...")
     _, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
-    mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy()#MirroredStrategy()
+    mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
         model_pretrain = EEGNet(nb_classes = 4, Chans = chans,
                                 Samples = samples, dropoutRate = dropout,
