@@ -169,7 +169,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     subject_data = scipy.stats.zscore(subject_data, axis=1)
     ##### Comment Out if no pretraining necessary
     # load pretrain data
-    pretrain_subjects = list(range(1,11))
+    pretrain_subjects = list(range(1,5))
     pretrain_subjects.remove(subject)
     print(pretrain_subjects)
     data_pretrain, events_pretrain = dp.load_data(subjects=pretrain_subjects)
