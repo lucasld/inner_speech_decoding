@@ -203,10 +203,10 @@ def subject_train_test_average(subject):
     model_pretrain.fit(dataset, epochs=EPOCHS, 
                         verbose = 1, class_weight = class_weights)
     print("Pretraining Done")
-    probs = model_pretrain.predict(subject_data)
-    preds = probs.argmax(axis = -1)  
-    acc = np.mean(preds == subject_events.argmax(axis=-1))
-    print("Classification accuracy on the whole single-subject dataset: %f " % (acc))
+    #probs = model_pretrain.predict(subject_data)
+    #preds = probs.argmax(axis = -1)  
+    #acc = np.mean(preds == subject_events.argmax(axis=-1))
+    #print("Classification accuracy on the whole single-subject dataset: %f " % (acc))
     # Save the entire model as a SavedModel.
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
