@@ -107,7 +107,7 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
     # shuffle, batch and prefetch the dataset
     data = data.shuffle(10_000)
     data = data.batch(batch_size)
-    data = data.prefetch(100)
+    data = data.prefetch(10)
     return data
 
 
