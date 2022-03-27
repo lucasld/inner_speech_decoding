@@ -147,9 +147,11 @@ def kfold_training_pretrained(data, labels, path, k=4):
 
 
 subject_history = []
+# TF_GPU_ALLOCATOR=cuda_malloc_async
 def subject_train_test_average(subject, epochs=EPOCHS,
                               dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
                               batch_size=BATCH_SIZE, n_checks=N_CHECKS):
+    print(epochs, dropout, kernel_length,batch_size, n_checks)
     print(f"TESTING SUBJECT {subject}")
     # load data
     subject_data_all, subject_events_all = dp.load_data(subjects=[subject])
@@ -193,7 +195,7 @@ def subject_train_test_average(subject, epochs=EPOCHS,
                                 F2 = 16, dropoutType = 'Dropout')
         optimizer = tf.keras.optimizers.Adam()
     options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
+    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
     dataset = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain)).with_options(options)
     dataset = dp.preprocessing_pipeline(dataset, batch_size=batch_size)
     model_pretrain.compile(loss='categorical_crossentropy',
