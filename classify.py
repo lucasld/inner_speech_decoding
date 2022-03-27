@@ -1,3 +1,4 @@
+from asyncio import events
 from curses.ascii import SUB
 import sys, getopt
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ from tensorflow.keras import utils as np_utils
 import sklearn
 import scipy.stats
 from perlin_numpy import generate_perlin_noise_3d
+import multiprocessing
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
@@ -119,12 +121,16 @@ def kfold_training_pretrained(data, labels, path, k=4):
         # reshape
         X_train = X_train.reshape(X_train.shape[0], chans, samples, kernels)
         X_test = X_test.reshape(X_test.shape[0], chans, samples, kernels)
+        options = tf.data.Options()
+        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+        dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).with_options(options)
+        dataset = dp.preprocessing_pipeline(dataset)
         mirrored_strategy = tf.distribute.MirroredStrategy()
         with mirrored_strategy.scope():
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
             # train, in each epoch train data is augmented
-            hist = model.fit(X_train, Y_train, batch_size = BATCH_SIZE,
+            hist = model.fit(dataset, batch_size = BATCH_SIZE,
                             epochs = EPOCHS, verbose = 1,
                             validation_data=(X_test, Y_test),
                             class_weight = class_weights)
@@ -139,6 +145,7 @@ def kfold_training_pretrained(data, labels, path, k=4):
 # model loading in kfold_training verbessern mit cloning erweitern
 
 
+subject_history = []
 def subject_train_test_average(subject, epochs=EPOCHS,
                               dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
                               batch_size=BATCH_SIZE, n_checks=N_CHECKS):
@@ -184,12 +191,15 @@ def subject_train_test_average(subject, epochs=EPOCHS,
                                 kernLength = kernel_length, F1 = 8, D = 2,
                                 F2 = 16, dropoutType = 'Dropout')
         optimizer = tf.keras.optimizers.Adam()
+    options = tf.data.Options()
+    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
+    dataset = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain)).with_options(options)
+    dataset = dp.preprocessing_pipeline(dataset, batch_size=batch_size)
     model_pretrain.compile(loss='categorical_crossentropy',
                             optimizer=optimizer,
                             metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
-    model_pretrain.fit(data_pretrain, events_pretrain,
-                        batch_size=batch_size, epochs=epochs, 
+    model_pretrain.fit(data_pretrain, events_pretrain, epochs=epochs, 
                         verbose = 1, class_weight = class_weights)
     print("Pretraining Done")
     probs = model_pretrain.predict(subject_data)
@@ -223,7 +233,8 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     f = open("results.txt", "a")
     f.write('\n'.join([f'Subject {subject}', f"Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in history_accumulator])}", f'{history_accumulator}', "\n\n\n"]))
     f.close()
-    return history_accumulator
+    subject_history = history_accumulator
+    #return history_accumulator
 
 
 if __name__ == '__main__':
@@ -247,9 +258,13 @@ if __name__ == '__main__':
         if name == '-n': N_CHECKS = int(arg)
         if name == '-b': BATCH_SIZE = int(arg)
     for subject in SUBJECT_S:
-        subject_history = subject_train_test_average(subject, epochs=EPOCHS,
-            dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
-            n_checks=N_CHECKS, batch_size=BATCH_SIZE)
+        # option 1: execute code with extra process
+        p = multiprocessing.Process(target=subject_train_test_average, args=(subject, EPOCHS, DROPOUT, KERNEL_LENGTH, BATCH_SIZE, N_CHECKS))
+        p.start()
+        p.join()
+        #subject_history = subject_train_test_average(subject, epochs=EPOCHS,
+        #    dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
+        #    n_checks=N_CHECKS, batch_size=BATCH_SIZE)
         for h in subject_history:
             plt.plot(h['val_accuracy'])
         plt.savefig(f'subject_{subject}_kfold_accuracies.png')
