@@ -9,6 +9,7 @@ import sklearn
 import scipy.stats
 from perlin_numpy import generate_perlin_noise_3d
 import multiprocessing
+from numba import cuda 
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
@@ -233,8 +234,8 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     f = open("results.txt", "a")
     f.write('\n'.join([f'Subject {subject}', f"Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in history_accumulator])}", f'{history_accumulator}', "\n\n\n"]))
     f.close()
-    subject_history = history_accumulator
-    #return history_accumulator
+    #subject_history = history_accumulator
+    return history_accumulator
 
 
 if __name__ == '__main__':
@@ -259,12 +260,14 @@ if __name__ == '__main__':
         if name == '-b': BATCH_SIZE = int(arg)
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
-        p = multiprocessing.Process(target=subject_train_test_average, args=(subject, EPOCHS, DROPOUT, KERNEL_LENGTH, BATCH_SIZE, N_CHECKS))
-        p.start()
-        p.join()
-        #subject_history = subject_train_test_average(subject, epochs=EPOCHS,
-        #    dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
-        #    n_checks=N_CHECKS, batch_size=BATCH_SIZE)
+        #p = multiprocessing.Process(target=subject_train_test_average, args=(subject, EPOCHS, DROPOUT, KERNEL_LENGTH, BATCH_SIZE, N_CHECKS))
+        #p.start()
+        #p.join()
+        subject_history = subject_train_test_average(subject, epochs=EPOCHS,
+            dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
+            n_checks=N_CHECKS, batch_size=BATCH_SIZE)
+        device = cuda.get_current_device()
+        device.reset()
         for h in subject_history:
             plt.plot(h['val_accuracy'])
         plt.savefig(f'subject_{subject}_kfold_accuracies.png')
