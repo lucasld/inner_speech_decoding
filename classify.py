@@ -8,7 +8,6 @@ from tensorflow.keras import utils as np_utils
 import sklearn
 import scipy.stats
 from perlin_numpy import generate_perlin_noise_3d
-import multiprocessing
 from numba import cuda 
 import nvsmi
 
@@ -150,34 +149,29 @@ def kfold_training_pretrained(data, labels, path, k=4):
 # model loading in kfold_training verbessern mit cloning erweitern
 
 
-def subject_train_test_average(subject):
+def subject_train_test_average(subject, complete_dataset):
     tf.keras.backend.clear_session()
     print(f"TESTING SUBJECT {subject}")
-    # load data
-    subject_data_all, subject_events_all = dp.load_data(subjects=[subject])
-    subject_data_all = subject_data_all.astype(np.float32)
-    # choose condition    
-    subject_data, subject_events = dp.choose_condition(subject_data_all,
-                                                        subject_events_all,
-                                                        'inner speech')
-    # filter relevant column from events
-    subject_events = subject_events[:, 1]
-    # one hot events
-    subject_events = np_utils.to_categorical(subject_events, num_classes=4)
-    # normlize data
-    subject_data = scipy.stats.zscore(subject_data, axis=1)
-    ##### Comment Out if no pretraining necessary
-    # load pretrain data
-    pretrain_subjects = list(range(1,11))
-    pretrain_subjects.remove(subject)
-    print(pretrain_subjects)
-    data_pretrain, events_pretrain = dp.load_data(subjects=pretrain_subjects)
-    data_pretrain = data_pretrain.astype(np.float32)
+    # subject data
+    subject_data_is, subject_events_is = complete_dataset[subject - 1]
+    subject_data_is = subject_events_is.astype(np.float32)
+    subject_data_is, subject_events_is = dp.choose_condition(subject_data_is,
+                                                             subject_events_is,
+                                                             'inner speech')
+    subject_events_is = subject_events_is[:, 1]
+    subject_events_is = np_utils.to_categorical(subject_events_is, num_classes=4)
+    subject_data_is = scipy.stats.zscore(subject_data_is, axis=1)
+    
+    # pretrain data
+    pretrain_data = np.array(data for i, (data, target) in enumerate(complete_dataset) if i != subject-1)
+    pretrain_targets = np.array(target for i, (data, target) in enumerate(complete_dataset) if i != subject-1)
     # append all non 'inner-speech'-conditions from subject 8
+    subject_data_all, subject_events_all = complete_dataset[subject - 1]
     for cond in ['pronounced speech', 'visualized condition']:
         data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
-        data_pretrain = np.append(data_pretrain, data_subject_nis, axis=0)
+        pretrain_data = np.append(pretrain_data, data_subject_nis, axis=0)
         events_pretrain = np.append(events_pretrain, events_subject_nis, axis=0)
+    pretrain_data = pretrain_data.astype(np.float32)
     # filter relevant column from events
     events_pretrain = events_pretrain[:, 1]
     # one hot events
@@ -207,11 +201,6 @@ def subject_train_test_average(subject):
     model_pretrain.fit(dataset, epochs=EPOCHS, 
                         verbose = 1, class_weight = class_weights)
     print("Pretraining Done")
-    #probs = model_pretrain.predict(subject_data)
-    #preds = probs.argmax(axis = -1)  
-    #acc = np.mean(preds == subject_events.argmax(axis=-1))
-    #print("Classification accuracy on the whole single-subject dataset: %f " % (acc))
-    # Save the entire model as a SavedModel.
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
     #####
@@ -222,7 +211,8 @@ def subject_train_test_average(subject):
         #device = cuda.get_current_device()
         #device.reset()
         # train k folds
-        k_history = kfold_training_pretrained(subject_data, subject_events, path)
+        k_history = kfold_training_pretrained(subject_data_is,
+                                              subject_events_is, path)
         history_accumulator += k_history
         print("N: ", n, "     ######################\n\n")
         print("Mean for K Folds:", np.mean([h['val_accuracy'][-1] for h in k_history]))
@@ -244,7 +234,6 @@ def subject_train_test_average(subject):
     subject_history = history_accumulator
     #return history_accumulator
 
-subject_history = []
 
 if __name__ == '__main__':
     opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:")
@@ -278,16 +267,16 @@ if __name__ == '__main__':
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
+    
+    # load all subjects individually
+    subjects_data_collection = [dp.load_data(subjects=[s]) for s in SUBJECT_S]
 
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
-        p = multiprocessing.Process(target=subject_train_test_average, args=(subject,))
-        p.start()
-        p.join()
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)
         print("USED MEMORY:", gpu1.mem_free)
-        #subject_history = subject_train_test_average(subject)
+        subject_history = subject_train_test_average(subject, subjects_data_collection)
         #device = cuda.get_current_device()
         #device.reset()
         for h in subject_history:
