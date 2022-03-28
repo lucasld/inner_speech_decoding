@@ -240,8 +240,8 @@ def subject_train_test_average(subject):
     f = open("results.txt", "a")
     f.write('\n'.join([f'Subject {subject}', f"Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in history_accumulator])}", f'{history_accumulator}', "\n\n\n"]))
     f.close()
-    #subject_history = history_accumulator
-    return history_accumulator
+    subject_history = history_accumulator
+    #return history_accumulator
 
 
 if __name__ == '__main__':
@@ -276,10 +276,23 @@ if __name__ == '__main__':
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
+    
+    import nvidia_smi
+    nvidia_smi.nvmlInit()
+
+    handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
+    # card id 0 hardcoded here, there is also a call to get all available card ids, so we could iterate
+
 
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
-        subject_history = subject_train_test_average(subject)
+        p = multiprocessing.Process(target=subject_train_test_average, args=(subject))
+        p.start()
+        p.join()
+        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+        print("FREE MEMORY:", info.free)
+        print("USED MEMORY:", info.used)
+        #subject_history = subject_train_test_average(subject)
         #device = cuda.get_current_device()
         #device.reset()
         for h in subject_history:
