@@ -102,7 +102,7 @@ def kfold_training_pretrained(data, labels, path, k=4):
     X = []
     Y = []
     for i in range(k):
-        n, _, _ = data.shape
+        n = data.shape[0]
         X.append(data[int(n/k * i):int(n/k * i + n/k)])
         Y.append(labels[int(n/k * i):int(n/k * i + n/k)])
     
