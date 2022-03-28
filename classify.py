@@ -10,6 +10,7 @@ import scipy.stats
 from perlin_numpy import generate_perlin_noise_3d
 import multiprocessing
 from numba import cuda 
+import nvsmi
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
@@ -243,6 +244,7 @@ def subject_train_test_average(subject):
     subject_history = history_accumulator
     #return history_accumulator
 
+subject_history = []
 
 if __name__ == '__main__':
     opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:")
@@ -276,22 +278,15 @@ if __name__ == '__main__':
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
-    
-    import nvidia_smi
-    nvidia_smi.nvmlInit()
-
-    handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
-    # card id 0 hardcoded here, there is also a call to get all available card ids, so we could iterate
-
 
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
         p = multiprocessing.Process(target=subject_train_test_average, args=(subject))
         p.start()
         p.join()
-        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
-        print("FREE MEMORY:", info.free)
-        print("USED MEMORY:", info.used)
+        gpu1 = list(nvsmi.get_gpus())[0]
+        print("FREE MEMORY:", gpu1.mem_util)
+        print("USED MEMORY:", gpu1.mem_free)
         #subject_history = subject_train_test_average(subject)
         #device = cuda.get_current_device()
         #device.reset()
