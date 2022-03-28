@@ -21,6 +21,7 @@ DROPOUT = 0.8
 KERNEL_LENGTH = 64
 N_CHECKS = 20
 BATCH_SIZE = 40
+PRETRAIN_EPOCHS = -1
 
 
 def augment_pipe(data, events, noise):
@@ -230,7 +231,7 @@ def subject_train_test_average(subject, complete_dataset):
 
 
 if __name__ == '__main__':
-    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:")
+    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:")
     print(opts)
     for name, arg in opts:
         """ # Python 3.10
@@ -249,6 +250,9 @@ if __name__ == '__main__':
         if name == '-k': KERNEL_LENGTH = int(arg)
         if name == '-n': N_CHECKS = int(arg)
         if name == '-b': BATCH_SIZE = int(arg)
+        if name == '-p': PRETRAIN_EPOCHS = int(arg)
+    
+    if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
     
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
