@@ -281,7 +281,7 @@ if __name__ == '__main__':
 
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
-        p = multiprocessing.Process(target=subject_train_test_average, args=(subject))
+        p = multiprocessing.Process(target=subject_train_test_average, args=(subject,))
         p.start()
         p.join()
         gpu1 = list(nvsmi.get_gpus())[0]
