@@ -101,10 +101,6 @@ def kfold_training_pretrained(data, labels, path, k=4):
     # create k data and label splits
     X = []
     Y = []
-    noise = np.zeros(data.shape)
-    # shuffle noise
-    noise = np.random.default_rng().permutation(noise)[:, :, :data.shape[2]]
-    print("B")
     for i in range(k):
         n, _, _ = data.shape
         X.append(data[int(n/k * i):int(n/k * i + n/k)])
@@ -134,7 +130,6 @@ def kfold_training_pretrained(data, labels, path, k=4):
         with mirrored_strategy.scope():
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
-            # train, in each epoch train data is augmented
             hist = model.fit(dataset_train, epochs = EPOCHS, verbose = 1,
                              validation_data=dataset_test,
                              class_weight=class_weights)
@@ -161,6 +156,8 @@ def subject_train_test_average(subject, complete_dataset):
     subject_events_is = subject_events_is[:, 1]
     subject_events_is = np_utils.to_categorical(subject_events_is, num_classes=4)
     subject_data_is = scipy.stats.zscore(subject_data_is, axis=1)
+    # reshape
+    subject_data_is = subject_data_is.reshape(*subject_data_is.shape, 1)
     
     # pretrain data
     pretrain_data = np.concatenate([data for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
@@ -180,17 +177,15 @@ def subject_train_test_average(subject, complete_dataset):
     # normlize data
     pretrain_data = scipy.stats.zscore(pretrain_data, axis=1)
     # reshape
-    kernels, chans, samples = 1, pretrain_data.shape[1], pretrain_data.shape[2]
-    pretrain_data = pretrain_data.reshape(pretrain_data.shape[0], chans, samples, kernels)
+    pretrain_data = pretrain_data.reshape(*pretrain_data.shape, 1)
 
     # Pretrain Model ----------
     print("Pretraining...")
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
-        model_pretrain = EEGNet(nb_classes = 4, Chans = chans,
-                                Samples = samples, dropoutRate = DROPOUT,
-                                kernLength = KERNEL_LENGTH, F1 = 8, D = 2,
-                                F2 = 16, dropoutType = 'Dropout')
+        model_pretrain = EEGNet(nb_classes=4, Chans=pretrain_data.shape[1],
+                                Samples=pretrain_data.shape[2], dropoutRate=DROPOUT,
+                                kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
         optimizer = tf.keras.optimizers.Adam()
     options = tf.data.Options()
     options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
