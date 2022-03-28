@@ -163,14 +163,15 @@ def subject_train_test_average(subject, complete_dataset):
     subject_data_is = scipy.stats.zscore(subject_data_is, axis=1)
     
     # pretrain data
-    pretrain_data = np.array(data for i, (data, target) in enumerate(complete_dataset) if i != subject-1)
-    pretrain_targets = np.array(target for i, (data, target) in enumerate(complete_dataset) if i != subject-1)
+    pretrain_data = np.concatenate([data for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
+    pretrain_events = np.concatenate([target for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
+    print(pretrain_data.shape)
     # append all non 'inner-speech'-conditions from subject 8
     subject_data_all, subject_events_all = complete_dataset[subject - 1]
     for cond in ['pronounced speech', 'visualized condition']:
         data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
         pretrain_data = np.append(pretrain_data, data_subject_nis, axis=0)
-        events_pretrain = np.append(events_pretrain, events_subject_nis, axis=0)
+        pretrain_events = np.append(pretrain_events, events_subject_nis, axis=0)
     pretrain_data = pretrain_data.astype(np.float32)
     # filter relevant column from events
     events_pretrain = events_pretrain[:, 1]
@@ -181,7 +182,8 @@ def subject_train_test_average(subject, complete_dataset):
     # reshape
     kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
     data_pretrain = data_pretrain.reshape(data_pretrain.shape[0], chans, samples, kernels)
-    # pretrain model
+
+    # Pretrain Model ----------
     print("Pretraining...")
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
@@ -203,7 +205,7 @@ def subject_train_test_average(subject, complete_dataset):
     print("Pretraining Done")
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
-    #####
+    # ------------------------
     # accumulate all training accs and losses
     history_accumulator = []
     for n in range(N_CHECKS):
@@ -273,10 +275,10 @@ if __name__ == '__main__':
 
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
+        subject_history = subject_train_test_average(subject, subjects_data_collection)
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)
         print("USED MEMORY:", gpu1.mem_free)
-        subject_history = subject_train_test_average(subject, subjects_data_collection)
         #device = cuda.get_current_device()
         #device.reset()
         for h in subject_history:
