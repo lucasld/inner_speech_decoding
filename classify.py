@@ -192,7 +192,7 @@ def subject_train_test_average(subject, complete_dataset):
                             optimizer=optimizer,
                             metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
-    model_pretrain.fit(dataset, epochs=EPOCHS, 
+    model_pretrain.fit(dataset, epochs=PRETRAIN_EPOCHS, 
                         verbose = 1, class_weight = class_weights)
     print("Pretraining Done")
     path = './models/saved_models/pretrained_model01'
