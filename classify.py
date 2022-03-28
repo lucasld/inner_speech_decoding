@@ -225,8 +225,8 @@ def subject_train_test_average(subject, complete_dataset):
     f = open("results.txt", "a")
     f.write('\n'.join([f'Subject {subject}', f"Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in history_accumulator])}", f'{history_accumulator}', "\n\n\n"]))
     f.close()
-    subject_history = history_accumulator
-    #return history_accumulator
+    #subject_history = history_accumulator
+    return history_accumulator
 
 
 if __name__ == '__main__':
