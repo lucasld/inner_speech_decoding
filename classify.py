@@ -114,10 +114,6 @@ def kfold_training_pretrained(data, labels, path, k=4):
         Y_train = np.concatenate([d for j, d in enumerate(Y) if j != k_i])
         X_test = X[k_i]
         Y_test = Y[k_i]
-        kernels, chans, samples = 1, data.shape[1], data.shape[2]
-        # reshape
-        X_train = X_train.reshape(X_train.shape[0], chans, samples, kernels)
-        X_test = X_test.reshape(X_test.shape[0], chans, samples, kernels)
         options = tf.data.Options()
         options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
         dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train))
@@ -149,7 +145,7 @@ def subject_train_test_average(subject, complete_dataset):
     print(f"TESTING SUBJECT {subject}")
     # subject data
     subject_data_is, subject_events_is = complete_dataset[subject - 1]
-    subject_data_is = subject_events_is.astype(np.float32)
+    subject_data_is = subject_data_is.astype(np.float32)
     subject_data_is, subject_events_is = dp.choose_condition(subject_data_is,
                                                              subject_events_is,
                                                              'inner speech')
@@ -208,6 +204,7 @@ def subject_train_test_average(subject, complete_dataset):
         #device = cuda.get_current_device()
         #device.reset()
         # train k folds
+        print(subject_data_is.shape, subject_events_is.shape)
         k_history = kfold_training_pretrained(subject_data_is,
                                               subject_events_is, path)
         history_accumulator += k_history
@@ -267,8 +264,6 @@ if __name__ == '__main__':
     
     # load all subjects individually
     subjects_data_collection = [dp.load_data(subjects=[s]) for s in SUBJECT_S]
-    for d, t in subjects_data_collection:
-        print(d.shape)
 
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
