@@ -174,14 +174,14 @@ def subject_train_test_average(subject, complete_dataset):
         pretrain_events = np.append(pretrain_events, events_subject_nis, axis=0)
     pretrain_data = pretrain_data.astype(np.float32)
     # filter relevant column from events
-    events_pretrain = events_pretrain[:, 1]
+    pretrain_events = pretrain_events[:, 1]
     # one hot events
-    events_pretrain = np_utils.to_categorical(events_pretrain, num_classes=4)
+    pretrain_events = np_utils.to_categorical(pretrain_events, num_classes=4)
     # normlize data
-    data_pretrain = scipy.stats.zscore(data_pretrain, axis=1)
+    pretrain_data = scipy.stats.zscore(pretrain_data, axis=1)
     # reshape
-    kernels, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
-    data_pretrain = data_pretrain.reshape(data_pretrain.shape[0], chans, samples, kernels)
+    kernels, chans, samples = 1, pretrain_data.shape[1], pretrain_data.shape[2]
+    pretrain_data = pretrain_data.reshape(pretrain_data.shape[0], chans, samples, kernels)
 
     # Pretrain Model ----------
     print("Pretraining...")
@@ -194,7 +194,7 @@ def subject_train_test_average(subject, complete_dataset):
         optimizer = tf.keras.optimizers.Adam()
     options = tf.data.Options()
     options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-    dataset = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain)).with_options(options)
+    dataset = tf.data.Dataset.from_tensor_slices((pretrain_data, pretrain_events)).with_options(options)
     dataset = dp.preprocessing_pipeline(dataset, batch_size=BATCH_SIZE)
     model_pretrain.compile(loss='categorical_crossentropy',
                             optimizer=optimizer,
