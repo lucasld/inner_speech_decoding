@@ -1,3 +1,6 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
 from asyncio import events
 from curses.ascii import SUB
 import sys, getopt
@@ -13,6 +16,10 @@ from numba import cuda
 import nvsmi
 import datetime
 import os
+tf.autograph.set_verbosity(3)
+import logging
+logging.getLogger('tensorflow').disabled = True
+tf.get_logger().setLevel('INFO')
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
@@ -297,7 +304,6 @@ if __name__ == '__main__':
             # Memory growth must be set before GPUs have been initialized
             print(e)
     """
-    
     
     # load all subjects individually
     subjects_data_collection = [dp.load_data(subjects=[s]) for s in range(1,11)]

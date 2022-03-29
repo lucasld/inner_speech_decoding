@@ -1,4 +1,0 @@
-Subject: 1
-Epochs: 10, Pretrain Epochs: 35, Batch Size: 5, N Checks: 20, Dropout: 0.8
- Average Accuracy: 0.277250000089407
-
