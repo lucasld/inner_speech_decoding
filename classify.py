@@ -8,11 +8,15 @@ from tensorflow.keras import utils as np_utils
 import sklearn
 import scipy.stats
 from perlin_numpy import generate_perlin_noise_3d
-import multiprocessing
 from numba import cuda 
+import nvsmi
+import datetime
+import os
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
+from utilities import plot_inter_train_results
+
 
 # Hyperparameters
 EPOCHS = 40
@@ -21,6 +25,7 @@ DROPOUT = 0.8
 KERNEL_LENGTH = 64
 N_CHECKS = 20
 BATCH_SIZE = 40
+PRETRAIN_EPOCHS = -1
 
 
 def augment_pipe(data, events, noise):
@@ -97,44 +102,42 @@ def kfold_training_pretrained(data, labels, path, k=4):
     
     data, labels are correspond to the subject to be tested
     """
-
     data, labels = sklearn.utils.shuffle(data, labels)
     # create k data and label splits
     X = []
     Y = []
-    noise = np.zeros(data.shape)
-    # shuffle noise
-    noise = np.random.default_rng().permutation(noise)[:, :, :data.shape[2]]
-
     for i in range(k):
-        n, _, _ = data.shape
+        n = data.shape[0]
         X.append(data[int(n/k * i):int(n/k * i + n/k)])
         Y.append(labels[int(n/k * i):int(n/k * i + n/k)])
     
     k_history = []
     for k_i in range(k):
+        tf.keras.backend.clear_session()
         # concat k-1 splits
-        X_train = np.concatenate([d for j, d in enumerate(X) if j != i])
-        Y_train = np.concatenate([d for j, d in enumerate(Y) if j != i])
-        X_test = X[i]
-        Y_test = Y[i]
-        kernels, chans, samples = 1, data.shape[1], data.shape[2]
-        # reshape
-        X_train = X_train.reshape(X_train.shape[0], chans, samples, kernels)
-        X_test = X_test.reshape(X_test.shape[0], chans, samples, kernels)
+        X_train = np.concatenate([d for j, d in enumerate(X) if j != k_i])
+        Y_train = np.concatenate([d for j, d in enumerate(Y) if j != k_i])
+        X_test = X[k_i]
+        Y_test = Y[k_i]
         options = tf.data.Options()
         options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-        dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).with_options(options)
-        dataset = dp.preprocessing_pipeline(dataset)
-        mirrored_strategy = tf.distribute.MirroredStrategy()
+        dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train))
+        dataset_train = dataset_train.with_options(options)
+        dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=BATCH_SIZE)
+        # test dataset
+        dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test)).with_options(options)
+        dataset_test = dp.preprocessing_pipeline(dataset_test, batch_size=BATCH_SIZE)
+        tf.debugging.set_log_device_placement(True)
+        gpus = tf.config.list_logical_devices('GPU')
+        mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
         with mirrored_strategy.scope():
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
-            # train, in each epoch train data is augmented
-            hist = model.fit(dataset, batch_size = BATCH_SIZE,
-                            epochs = EPOCHS, verbose = 1,
-                            validation_data=(X_test, Y_test),
-                            class_weight = class_weights)
+        hist = model.fit(dataset_train, epochs = EPOCHS, verbose = 1,
+                         validation_data=dataset_test,
+                         class_weight=class_weights)
+        
+        del model
         k_history.append(hist.history)
     return k_history
 
@@ -146,76 +149,82 @@ def kfold_training_pretrained(data, labels, path, k=4):
 # model loading in kfold_training verbessern mit cloning erweitern
 
 
-subject_history = []
-def subject_train_test_average(subject, epochs=EPOCHS,
-                              dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
-                              batch_size=BATCH_SIZE, n_checks=N_CHECKS):
+def subject_train_test_average(subject, complete_dataset):
+    tf.keras.backend.clear_session()
     print(f"TESTING SUBJECT {subject}")
-    # load data
-    subject_data_all, subject_events_all = dp.load_data(subjects=[subject])
-    subject_data_all = subject_data_all.astype(np.float32)
-    # choose condition    
-    subject_data, subject_events = dp.choose_condition(subject_data_all,
-                                                        subject_events_all,
-                                                        'inner speech')
-    # filter relevant column from events
-    subject_events = subject_events[:, 1]
-    # one hot events
-    subject_events = np_utils.to_categorical(subject_events, num_classes=4)
-    # normlize data
-    subject_data = scipy.stats.zscore(subject_data, axis=1)
-    ##### Comment Out if no pretraining necessary
-    # load pretrain data
-    pretrain_subjects = list(range(1,11))
-    pretrain_subjects.remove(subject)
-    print(pretrain_subjects)
-    data_pretrain, events_pretrain = dp.load_data(subjects=pretrain_subjects)
-    data_pretrain = data_pretrain.astype(np.float32)
+    # subject data
+    subject_data_is, subject_events_is = complete_dataset[subject - 1]
+    subject_data_is = subject_data_is.astype(np.float32)
+    subject_data_is, subject_events_is = dp.choose_condition(subject_data_is,
+                                                             subject_events_is,
+                                                             'inner speech')
+    subject_events_is = subject_events_is[:, 1]
+    subject_events_is = np_utils.to_categorical(subject_events_is, num_classes=4)
+    subject_data_is = scipy.stats.zscore(subject_data_is, axis=1)
+    # reshape
+    subject_data_is = subject_data_is.reshape(*subject_data_is.shape, 1)
+    
+    # pretrain data
+    pretrain_data = np.concatenate([data for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
+    pretrain_events = np.concatenate([target for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
+    print(pretrain_data.shape)
     # append all non 'inner-speech'-conditions from subject 8
+    subject_data_all, subject_events_all = complete_dataset[subject - 1]
     for cond in ['pronounced speech', 'visualized condition']:
         data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
-        data_pretrain = np.append(data_pretrain, data_subject_nis, axis=0)
-        events_pretrain = np.append(events_pretrain, events_subject_nis, axis=0)
+        pretrain_data = np.append(pretrain_data, data_subject_nis, axis=0)
+        pretrain_events = np.append(pretrain_events, events_subject_nis, axis=0)
+    pretrain_data = pretrain_data.astype(np.float32)
     # filter relevant column from events
-    events_pretrain = events_pretrain[:, 1]
+    pretrain_events = pretrain_events[:, 1]
     # one hot events
-    events_pretrain = np_utils.to_categorical(events_pretrain, num_classes=4)
+    pretrain_events = np_utils.to_categorical(pretrain_events, num_classes=4)
     # normlize data
-    data_pretrain = scipy.stats.zscore(data_pretrain, axis=1)
-    # pretrain model
+    pretrain_data = scipy.stats.zscore(pretrain_data, axis=1)
+    # reshape
+    pretrain_data = pretrain_data.reshape(*pretrain_data.shape, 1)
+
+    # Pretrain Model ----------
     print("Pretraining...")
-    _, chans, samples = 1, data_pretrain.shape[1], data_pretrain.shape[2]
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    tf.debugging.set_log_device_placement(True)
+    gpus = tf.config.list_logical_devices('GPU')
+    mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
     with mirrored_strategy.scope():
-        model_pretrain = EEGNet(nb_classes = 4, Chans = chans,
-                                Samples = samples, dropoutRate = dropout,
-                                kernLength = kernel_length, F1 = 8, D = 2,
-                                F2 = 16, dropoutType = 'Dropout')
+        model_pretrain = EEGNet(nb_classes=4, Chans=pretrain_data.shape[1],
+                                Samples=pretrain_data.shape[2], dropoutRate=DROPOUT,
+                                kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
         optimizer = tf.keras.optimizers.Adam()
     options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
-    dataset = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain)).with_options(options)
-    dataset = dp.preprocessing_pipeline(dataset, batch_size=batch_size)
+    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+    dataset = tf.data.Dataset.from_tensor_slices((pretrain_data, pretrain_events)).with_options(options)
+    dataset = dp.preprocessing_pipeline(dataset, batch_size=BATCH_SIZE)
     model_pretrain.compile(loss='categorical_crossentropy',
                             optimizer=optimizer,
                             metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
-    model_pretrain.fit(data_pretrain, events_pretrain, epochs=epochs, 
-                        verbose = 1, class_weight = class_weights)
+    # turn subject data into tf.Dataset to use in pretraining validation
+    pt_val_dataset = tf.data.Dataset.from_tensor_slices((subject_data_is[:50], subject_events_is[:50])).with_options(options)
+    pt_val_dataset = dp.preprocessing_pipeline(pt_val_dataset,
+                                               batch_size=BATCH_SIZE)
+    # fit model to pretrain data
+    pretrain_history = model_pretrain.fit(
+        dataset, epochs=PRETRAIN_EPOCHS, verbose = 1,
+        validation_data=pt_val_dataset, class_weight = class_weights)
     print("Pretraining Done")
-    probs = model_pretrain.predict(subject_data)
-    preds = probs.argmax(axis = -1)  
-    acc = np.mean(preds == subject_events.argmax(axis=-1))
-    print("Classification accuracy on the whole single-subject dataset: %f " % (acc))
-    # Save the entire model as a SavedModel.
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
-    #####
+    del model_pretrain
+    # ------------------------
     # accumulate all training accs and losses
     history_accumulator = []
-    for n in range(n_checks):
-        # kacc = kfold_training(subject_data, subject_events)
-        k_history = kfold_training_pretrained(subject_data, subject_events, path)
+    for n in range(N_CHECKS):
+        # clear gpu memory        
+        #device = cuda.get_current_device()
+        #device.reset()
+        # train k folds
+        print(subject_data_is.shape, subject_events_is.shape)
+        k_history = kfold_training_pretrained(subject_data_is,
+                                              subject_events_is, path)
         history_accumulator += k_history
         print("N: ", n, "     ######################\n\n")
         print("Mean for K Folds:", np.mean([h['val_accuracy'][-1] for h in k_history]))
@@ -225,22 +234,19 @@ def subject_train_test_average(subject, epochs=EPOCHS,
     print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
     print(history_accumulator)
     print("Parameters")
-    print("EPOCHS:", epochs)
+    print("EPOCHS:", EPOCHS)
     print("SUBJECT:", subject)
-    print("DROPOUT", dropout)
-    print("KERNEL_LENGTH", kernel_length)
-    print("N_CHECKS", n_checks)
-    print("BATCH SIZE", batch_size)
-    f = open("results.txt", "a")
-    f.write('\n'.join([f'Subject {subject}', f"Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in history_accumulator])}", f'{history_accumulator}', "\n\n\n"]))
-    f.close()
-    #subject_history = history_accumulator
-    return history_accumulator
+    print("DROPOUT", DROPOUT)
+    print("KERNEL_LENGTH", KERNEL_LENGTH)
+    print("N_CHECKS", N_CHECKS)
+    print("BATCH SIZE", BATCH_SIZE)
+    return history_accumulator, pretrain_history.history
 
 
 if __name__ == '__main__':
-    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:")
-    print(opts)
+    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:")
+    now = datetime.datetime.now()
+    title =f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
     for name, arg in opts:
         """ # Python 3.10
         match name:
@@ -258,17 +264,57 @@ if __name__ == '__main__':
         if name == '-k': KERNEL_LENGTH = int(arg)
         if name == '-n': N_CHECKS = int(arg)
         if name == '-b': BATCH_SIZE = int(arg)
+        if name == '-p': PRETRAIN_EPOCHS = int(arg)
+    
+    if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
+    """
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        # Create 2 virtual GPUs with 1GB memory each
+        try:
+            tf.config.set_logical_device_configuration(
+                gpus[0],
+                [tf.config.LogicalDeviceConfiguration(memory_limit=3800),
+                tf.config.LogicalDeviceConfiguration(memory_limit=3800)])
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPU,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Virtual devices must be set before GPUs have been initialized
+            print(e)
+    """
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        try:
+            # Currently, memory growth needs to be the same across GPUs
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Memory growth must be set before GPUs have been initialized
+            print(e)
+    
+    
+    # load all subjects individually
+    subjects_data_collection = [dp.load_data(subjects=[s]) for s in SUBJECT_S]
+    result_collection = []
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
-        #p = multiprocessing.Process(target=subject_train_test_average, args=(subject, EPOCHS, DROPOUT, KERNEL_LENGTH, BATCH_SIZE, N_CHECKS))
-        #p.start()
-        #p.join()
-        subject_history = subject_train_test_average(subject, epochs=EPOCHS,
-            dropout=DROPOUT, kernel_length=KERNEL_LENGTH,
-            n_checks=N_CHECKS, batch_size=BATCH_SIZE)
-        device = cuda.get_current_device()
-        device.reset()
-        for h in subject_history:
-            plt.plot(h['val_accuracy'])
-        plt.savefig(f'subject_{subject}_kfold_accuracies.png')
-        plt.clf()
+        subject_history, pretrain_history = subject_train_test_average(subject, subjects_data_collection)
+        # check gpu storage availablity
+        gpu1 = list(nvsmi.get_gpus())[0]
+        print("FREE MEMORY:", gpu1.mem_util)
+        print("USED MEMORY:", gpu1.mem_free)
+        # write subject average accuracy to file
+        os.mkdir(f'./{title}')
+        f = open(f'./{title}/results.txt', 'a')
+        f.write(f"Subject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n\n")
+        f.close()
+        # plot subjects inter-training results
+        plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
+        result_collection.append(subject_history)
+    # plot all subject's inter-training results
+    f = open(f'./{title}/results.txt', 'a')
+    f.write(f"\n\n{pretrain_history}")
+    f.close()
+    plot_inter_train_results(result_collection, f'./{title}/all_subjects', pretrain_res=pretrain_history)
