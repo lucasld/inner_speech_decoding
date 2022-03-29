@@ -79,8 +79,8 @@ class TrainingGrapher:
         plt.show()
 
 
-def plot_inter_train_results(results, path,
-                              pretrain_res=[], key='val_accuracy'):
+def plot_inter_train_results(results, figure_title,
+                              pretrain_res=None, key='val_accuracy'):
     """Plot training progress.
     
     :param results: list of subjects inter training results
@@ -96,14 +96,17 @@ def plot_inter_train_results(results, path,
     fig, axs = plt.subplots(len(results), figsize=(15, 8*len(results)))
     for i, subject_results in enumerate(results):
         collection = []
+        ax = axs[i] if len(results) > 1 else axs
+        pretrain_res = pretrain_res[key] if pretrain_res else []
         for nkfold_results in subject_results:
-            res_data = pretrain_res[key] + nkfold_results[key]
-            axs[i].plot(range(len(res_data)), res_data, alpha=0.1)
+            res_data = pretrain_res + nkfold_results[key]
+            ax.plot(range(len(res_data)), res_data, alpha=0.1)
             collection.append(res_data)
         # calculate mean and standart deviation
         mean = np.mean(np.array(collection), axis=0)
         std = np.std(np.array(collection), axis=0)
         # plot mean and standard 
-        axs[i].errorbar(range(len(res_data)), mean, std, marker='^')
-        if len(pretrain_res): axs[i].axvline(x=len(pretrain_res))
+        ax.errorbar(range(len(res_data)), mean, std, marker='^')
+
+        if len(pretrain_res): ax.axvline(x=len(pretrain_res))
     plt.savefig(f'{figure_title}.png')

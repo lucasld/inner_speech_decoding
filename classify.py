@@ -133,9 +133,11 @@ def kfold_training_pretrained(data, labels, path, k=4):
         with mirrored_strategy.scope():
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
-            hist = model.fit(dataset_train, epochs = EPOCHS, verbose = 1,
-                             validation_data=dataset_test,
-                             class_weight=class_weights)
+        hist = model.fit(dataset_train, epochs = EPOCHS, verbose = 1,
+                         validation_data=dataset_test,
+                         class_weight=class_weights)
+        
+        del model
         k_history.append(hist.history)
     return k_history
 
@@ -211,6 +213,7 @@ def subject_train_test_average(subject, complete_dataset):
     print("Pretraining Done")
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
+    del model_pretrain
     # ------------------------
     # accumulate all training accs and losses
     history_accumulator = []
