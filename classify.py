@@ -227,7 +227,7 @@ def subject_train_test_average(subject, complete_dataset):
     print("KERNEL_LENGTH", KERNEL_LENGTH)
     print("N_CHECKS", N_CHECKS)
     print("BATCH SIZE", BATCH_SIZE)
-    return history_accumulator, pretrain_history.hist
+    return history_accumulator, pretrain_history.history
 
 
 if __name__ == '__main__':
