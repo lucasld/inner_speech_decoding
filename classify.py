@@ -319,7 +319,7 @@ if __name__ == '__main__':
         except:
             pass
         f = open(f'./{title}/results.txt', 'a')
-        f.write(f"Subject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n")
+        f.write(f"\nSubject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n")
         f.close()
         f = open(f'./{title}/results.txt', 'a')
         f.write(f'Pretrain History: {pretrain_history}\nSubject History: {subject_history}\n\n')
