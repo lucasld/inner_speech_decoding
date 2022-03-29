@@ -97,7 +97,7 @@ def plot_inter_epoch_results(results, figure_title,
     for i, subject_results in enumerate(results):
         collection = []
         for nkfold_results in subject_results:
-            res_data = nkfold_results[key]
+            res_data = pretrain_res + nkfold_results[key]
             axs[i].plot(range(len(res_data)), res_data, alpha=0.1)
             collection.append(res_data)
         # calculate mean and standart deviation
