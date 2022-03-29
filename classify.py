@@ -245,7 +245,7 @@ def subject_train_test_average(subject, complete_dataset):
 
 
 if __name__ == '__main__':
-    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:")
+    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:t:")
     now = datetime.datetime.now()
     title =f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
     for name, arg in opts:
