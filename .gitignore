@@ -1,6 +1,8 @@
 # Additional
 dataset/
 figures/
+test_models/
+results/
 .idea/
 .DS_Store
 
