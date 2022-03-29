@@ -291,7 +291,6 @@ if __name__ == '__main__':
             # Virtual devices must be set before GPUs have been initialized
             print(e)
     """
-    """
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
         try:
@@ -303,7 +302,6 @@ if __name__ == '__main__':
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
-    """
     
     # load all subjects individually
     subjects_data_collection = [dp.load_data(subjects=[s]) for s in range(1,11)]
