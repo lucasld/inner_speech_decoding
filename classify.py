@@ -127,7 +127,9 @@ def kfold_training_pretrained(data, labels, path, k=4):
         # test dataset
         dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test)).with_options(options)
         dataset_test = dp.preprocessing_pipeline(dataset_test, batch_size=BATCH_SIZE)
-        mirrored_strategy = tf.distribute.MirroredStrategy()
+        tf.debugging.set_log_device_placement(True)
+        gpus = tf.config.list_logical_devices('GPU')
+        mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
         with mirrored_strategy.scope():
             model = tf.keras.models.load_model(path)
             class_weights = {0:1, 1:1, 2:1, 3:1}
@@ -182,7 +184,9 @@ def subject_train_test_average(subject, complete_dataset):
 
     # Pretrain Model ----------
     print("Pretraining...")
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    tf.debugging.set_log_device_placement(True)
+    gpus = tf.config.list_logical_devices('GPU')
+    mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
     with mirrored_strategy.scope():
         model_pretrain = EEGNet(nb_classes=4, Chans=pretrain_data.shape[1],
                                 Samples=pretrain_data.shape[2], dropoutRate=DROPOUT,
@@ -263,6 +267,20 @@ if __name__ == '__main__':
     
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
+        # Create 2 virtual GPUs with 1GB memory each
+        try:
+            tf.config.set_logical_device_configuration(
+                gpus[0],
+                [tf.config.LogicalDeviceConfiguration(memory_limit=2048),
+                tf.config.LogicalDeviceConfiguration(memory_limit=2048)])
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPU,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Virtual devices must be set before GPUs have been initialized
+            print(e)
+    """
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
         try:
             # Currently, memory growth needs to be the same across GPUs
             for gpu in gpus:
@@ -272,6 +290,7 @@ if __name__ == '__main__':
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
+    """
     
     # load all subjects individually
     subjects_data_collection = [dp.load_data(subjects=[s]) for s in SUBJECT_S]
