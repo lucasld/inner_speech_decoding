@@ -201,7 +201,7 @@ def subject_train_test_average(subject, complete_dataset):
                             metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
     # turn subject data into tf.Dataset to use in pretraining validation
-    pt_val_dataset = tf.data.Dataset.from_tensor_slices((subject_data_is, subject_events_is)).with_options(options)
+    pt_val_dataset = tf.data.Dataset.from_tensor_slices((subject_data_is[:50], subject_events_is[:50])).with_options(options)
     pt_val_dataset = dp.preprocessing_pipeline(pt_val_dataset,
                                                batch_size=BATCH_SIZE)
     # fit model to pretrain data
@@ -264,15 +264,15 @@ if __name__ == '__main__':
         if name == '-p': PRETRAIN_EPOCHS = int(arg)
     
     if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
-    
+    """
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
         # Create 2 virtual GPUs with 1GB memory each
         try:
             tf.config.set_logical_device_configuration(
                 gpus[0],
-                [tf.config.LogicalDeviceConfiguration(memory_limit=2048),
-                tf.config.LogicalDeviceConfiguration(memory_limit=2048)])
+                [tf.config.LogicalDeviceConfiguration(memory_limit=3800),
+                tf.config.LogicalDeviceConfiguration(memory_limit=3800)])
             logical_gpus = tf.config.list_logical_devices('GPU')
             print(len(gpus), "Physical GPU,", len(logical_gpus), "Logical GPUs")
         except RuntimeError as e:
@@ -290,7 +290,7 @@ if __name__ == '__main__':
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
-    """
+    
     
     # load all subjects individually
     subjects_data_collection = [dp.load_data(subjects=[s]) for s in SUBJECT_S]
