@@ -296,7 +296,7 @@ if __name__ == '__main__':
     
     
     # load all subjects individually
-    subjects_data_collection = [dp.load_data(subjects=[s]) for s in SUBJECT_S]
+    subjects_data_collection = [dp.load_data(subjects=[s]) for s in range(1,11)]
     result_collection = []
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
