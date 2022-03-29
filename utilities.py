@@ -77,3 +77,32 @@ class TrainingGrapher:
                 self.axs[i%self.plot_shape[1], i//self.plot_shape[1]].set_ylim(min(yd) - 0.002, max(yd) + 0.002)
         plt.pause(0.1)
         plt.show()
+
+
+def plot_inter_epoch_results(results, figure_title,
+                              pretrain_res=[], key='val_accuracy'):
+    """Plot training progress.
+    
+    :param results: list of subjects inter training results
+    :type results: list of dicts
+    :param figure_title: title of the figure
+    :type figure_title: string
+    :param pretrain_res: results of the pretraining that should be pretended to
+        the visualization
+    :type pretrain_res: list of floats
+    :param key: key of result type to be visualized
+    :type key: string
+    """
+    fig, axs = plt.subplots(len(results), figsize=(15, 8*len(results)))
+    for i, subject_results in enumerate(results):
+        collection = []
+        for nkfold_results in subject_results:
+            res_data = nkfold_results[key]
+            axs[i].plot(range(len(res_data)), res_data, alpha=0.1)
+            collection.append(res_data)
+        # calculate mean and standart deviation
+        mean = np.mean(np.array(collection), axis=0)
+        std = np.std(np.array(collection), axis=0)
+        # plot mean and standard 
+        axs[i].errorbar(range(len(res_data)), mean, std, marker='^')
+    plt.savefig(f'./{figure_title}/results_{key}.png')
