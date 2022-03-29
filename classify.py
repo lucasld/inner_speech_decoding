@@ -10,9 +10,13 @@ import scipy.stats
 from perlin_numpy import generate_perlin_noise_3d
 from numba import cuda 
 import nvsmi
+import datetime
+import os
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
+from utilities import plot_inter_train_results
+
 
 # Hyperparameters
 EPOCHS = 40
@@ -192,7 +196,7 @@ def subject_train_test_average(subject, complete_dataset):
                             optimizer=optimizer,
                             metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
-    model_pretrain.fit(dataset, epochs=PRETRAIN_EPOCHS, 
+    pretrain_history = model_pretrain.fit(dataset, epochs=PRETRAIN_EPOCHS, 
                         verbose = 1, class_weight = class_weights)
     print("Pretraining Done")
     path = './models/saved_models/pretrained_model01'
@@ -223,16 +227,13 @@ def subject_train_test_average(subject, complete_dataset):
     print("KERNEL_LENGTH", KERNEL_LENGTH)
     print("N_CHECKS", N_CHECKS)
     print("BATCH SIZE", BATCH_SIZE)
-    f = open("results.txt", "a")
-    f.write('\n'.join([f'Subject {subject}', f"Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in history_accumulator])}", f'{history_accumulator}', "\n\n\n"]))
-    f.close()
-    #subject_history = history_accumulator
-    return history_accumulator
+    return history_accumulator, pretrain_history.hist
 
 
 if __name__ == '__main__':
     opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:")
-    print(opts)
+    now = datetime.datetime.now()
+    title =f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
     for name, arg in opts:
         """ # Python 3.10
         match name:
@@ -268,16 +269,24 @@ if __name__ == '__main__':
     
     # load all subjects individually
     subjects_data_collection = [dp.load_data(subjects=[s]) for s in SUBJECT_S]
-
+    result_collection = []
     for subject in SUBJECT_S:
         # option 1: execute code with extra process
-        subject_history = subject_train_test_average(subject, subjects_data_collection)
+        subject_history, pretrain_history = subject_train_test_average(subject, subjects_data_collection)
+        # check gpu storage availablity
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)
         print("USED MEMORY:", gpu1.mem_free)
-        #device = cuda.get_current_device()
-        #device.reset()
-        for h in subject_history:
-            plt.plot(h['val_accuracy'])
-        plt.savefig(f'subject_{subject}_kfold_accuracies.png')
-        plt.clf()
+        # write subject average accuracy to file
+        os.mkdir(f'/{title}')
+        f = open(f'./{title}/results.txt', 'a')
+        f.write(f"Subject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n\n")
+        f.close()
+        # plot subjects inter-training results
+        plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
+        result_collection.append(subject_history)
+    # plot all subject's inter-training results
+    f = open(f'./{title}/results.txt', 'a')
+    f.write(f"\n\n{pretrain_history}")
+    f.close()
+    plot_inter_train_results(result_collection, f'./{title}/all_subjects', pretrain_res=pretrain_history)
