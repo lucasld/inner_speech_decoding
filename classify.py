@@ -1,6 +1,7 @@
 from asyncio import events
 from curses.ascii import SUB
 import sys, getopt
+from unittest import result
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -265,6 +266,7 @@ if __name__ == '__main__':
         if name == '-n': N_CHECKS = int(arg)
         if name == '-b': BATCH_SIZE = int(arg)
         if name == '-p': PRETRAIN_EPOCHS = int(arg)
+        if name == '-t': title = arg
     
     if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
     """
@@ -282,6 +284,7 @@ if __name__ == '__main__':
             # Virtual devices must be set before GPUs have been initialized
             print(e)
     """
+    """
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
         try:
@@ -293,6 +296,7 @@ if __name__ == '__main__':
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
+    """
     
     
     # load all subjects individually
@@ -306,15 +310,21 @@ if __name__ == '__main__':
         print("FREE MEMORY:", gpu1.mem_util)
         print("USED MEMORY:", gpu1.mem_free)
         # write subject average accuracy to file
-        os.mkdir(f'./{title}')
+        try:
+            os.mkdir(f'./{title}')
+        except:
+            pass
         f = open(f'./{title}/results.txt', 'a')
-        f.write(f"Subject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n\n")
+        f.write(f"Subject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n")
+        f.close()
+        f = open(f'./{title}/results.txt', 'a')
+        f.write(f'Pretrain History: {pretrain_history}\nSubject History: {subject_history}\n\n')
         f.close()
         # plot subjects inter-training results
         plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
         result_collection.append(subject_history)
     # plot all subject's inter-training results
     f = open(f'./{title}/results.txt', 'a')
-    f.write(f"\n\n{pretrain_history}")
+    f.write(f"\n\n{result_collection}")
     f.close()
     plot_inter_train_results(result_collection, f'./{title}/all_subjects', pretrain_res=pretrain_history)
