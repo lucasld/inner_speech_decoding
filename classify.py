@@ -278,7 +278,7 @@ if __name__ == '__main__':
         print("FREE MEMORY:", gpu1.mem_util)
         print("USED MEMORY:", gpu1.mem_free)
         # write subject average accuracy to file
-        os.mkdir(f'/{title}')
+        os.mkdir(f'./{title}')
         f = open(f'./{title}/results.txt', 'a')
         f.write(f"Subject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n\n")
         f.close()
