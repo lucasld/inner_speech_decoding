@@ -127,13 +127,13 @@ def kfold_training_pretrained(data, labels, path, k=4):
         Y_train = np.concatenate([d for j, d in enumerate(Y) if j != k_i])
         X_test = X[k_i]
         Y_test = Y[k_i]
-        options = tf.data.Options()
-        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+        #options = tf.data.Options()
+        #options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
         dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train))
-        dataset_train = dataset_train.with_options(options)
+        #dataset_train = dataset_train.with_options(options)
         dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=BATCH_SIZE)
         # test dataset
-        dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test)).with_options(options)
+        dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test))#.with_options(options)
         dataset_test = dp.preprocessing_pipeline(dataset_test, batch_size=BATCH_SIZE)
         tf.debugging.set_log_device_placement(True)
         gpus = tf.config.list_logical_devices('GPU')
