@@ -196,8 +196,14 @@ def subject_train_test_average(subject, complete_dataset):
                             optimizer=optimizer,
                             metrics=['accuracy'])
     class_weights = {0:1, 1:1, 2:1, 3:1}
-    pretrain_history = model_pretrain.fit(dataset, epochs=PRETRAIN_EPOCHS, 
-                        verbose = 1, class_weight = class_weights)
+    # turn subject data into tf.Dataset to use in pretraining validation
+    pt_val_dataset = tf.data.Dataset.from_tensor_slices((subject_data_is, subject_events_is)).with_options(options)
+    pt_val_dataset = dp.preprocessing_pipeline(pt_val_dataset,
+                                               batch_size=BATCH_SIZE)
+    # fit model to pretrain data
+    pretrain_history = model_pretrain.fit(
+        dataset, epochs=PRETRAIN_EPOCHS, verbose = 1,
+        validation_data=pt_val_dataset, class_weight = class_weights)
     print("Pretraining Done")
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
