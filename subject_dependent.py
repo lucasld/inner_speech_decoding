@@ -107,7 +107,6 @@ def pretrained_all_classes(subject, complete_dataset):
                                 kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
         # adam optimizer
         optimizer = tf.keras.optimizers.Adam()
-    
     # compile model
     model_pretrain.compile(loss='categorical_crossentropy',
                             optimizer=optimizer,
@@ -115,11 +114,11 @@ def pretrained_all_classes(subject, complete_dataset):
     # fit model to pretrain data
     pretrain_history = model_pretrain.fit(pt_train_ds, epochs=PRETRAIN_EPOCHS,
                                           verbose=1, validation_data=pt_val_ds)
-    print("Pretraining Done")
     # save pretrained model so it can be used for transfer learning
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
     del model_pretrain
+    print("Pretraining Done")
 
     ###### TRANSFER LEARNING
     history_accumulator = []
