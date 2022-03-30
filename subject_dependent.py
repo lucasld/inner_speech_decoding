@@ -35,20 +35,20 @@ BATCH_SIZE = 40
 PRETRAIN_EPOCHS = -1
 
 
-def pretrained_all_classes(subject, complete_dataset):
+def pretrained_all_classes(subject):
     """Determine the performance of models to predict the inner speech data of
     one subject. The models are pretrained on all subjects 3 conditions and the
     two non-inner speech conditions of the subject in question.
 
     :param subject: the subject whose inner speech data should be predicted
     :type subject: integer from 1 to 10
-    :param complete_dataset: a collection of all subjects available data
-    :type complete_dataset: a list of data, event tuples
     :return: the history of the training and pretraining
     :rtype: list of dictonaries for every model that was created; N_CHECKS * 4
     """
     tf.keras.backend.clear_session()
     print(f"TESTING SUBJECT {subject}")
+    # load all subjects individually
+    subjects_data_collection = [dp.load_data(subjects=[s], filter_action=True) for s in range(1,11)]
     ###### INNER SPEECH SUBJECT DATA
     # collect subject's data and events
     subject_data_is, subject_events_is = complete_dataset[subject - 1]
@@ -124,7 +124,7 @@ def pretrained_all_classes(subject, complete_dataset):
     history_accumulator = []
     for n in range(N_CHECKS):
         # kfold testing of transfer learning
-        k_history = kfold_training(subject_data_is, subject_events_is, path)
+        k_history = kfold_training(subject_data_is, subject_events_is, path, BATCH_SIZE, EPOCHS)
         # add kfold metric-history
         history_accumulator += k_history
         print("\n\nN: ", n, "     ######################\n")
@@ -182,14 +182,12 @@ if __name__ == '__main__':
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
-    
-    # load all subjects individually
-    subjects_data_collection = [dp.load_data(subjects=[s]) for s in range(1,11)]
+
     result_collection = []
     for subject in SUBJECT_S:
         # determine performance of a model that is pretrained on all the data
         # except inner speech data of one subject
-        pretrain_history, subject_history = pretrained_all_classes(subject, subjects_data_collection)
+        pretrain_history, subject_history = pretrained_all_classes(subject)
         # check gpu storage availablity
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)

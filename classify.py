@@ -26,16 +26,6 @@ from models.classifiers import EEGNet
 from utilities import plot_inter_train_results
 
 
-# Hyperparameters
-EPOCHS = 40
-SUBJECT_S = range(1,11)
-DROPOUT = 0.8
-KERNEL_LENGTH = 64
-N_CHECKS = 20
-BATCH_SIZE = 40
-PRETRAIN_EPOCHS = -1
-
-
 def augment_pipe(data, events, noise):
     aug_data = data + np.random.normal(0, np.random.rand() * 2, data.shape) # 100_000
     for i in range(aug_data.shape[0]):
@@ -102,7 +92,7 @@ def kfold_training(data, labels, k=4):
     return kfold_acc
 """
 
-def kfold_training(data, labels, model_path, k=4):
+def kfold_training(data, labels, model_provided, batch_size, epochs, k=4):
     """K-Fold train and test a model on data and labels.
 
     :param data: models input data
@@ -111,6 +101,10 @@ def kfold_training(data, labels, model_path, k=4):
     :type labels: numpy array
     :param model_path: path of the saved model to be used (pretrained or not)
     :type model_path: string
+    :param batch_size: datasets batch size
+    :type batch_size: integer
+    :param epochs: number of epochs for which to train the model
+    :type epochs: integer
     :param k: number of folds the data should be split into when training and
         testing, defaults to 4
     :type k: integer, optional
@@ -135,22 +129,23 @@ def kfold_training(data, labels, model_path, k=4):
         Y_train = np.concatenate([d for j, d in enumerate(Y) if j != k_i])
         X_test = X[k_i]
         Y_test = Y[k_i]
-        #options = tf.data.Options()
-        #options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+        options = tf.data.Options()
+        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
         # train dataset
-        dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train))#.with_options(options)
-        dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=BATCH_SIZE)
+        dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).with_options(options)
+        dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=batch_size)
         # test dataset
-        dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test))#.with_options(options)
-        dataset_test = dp.preprocessing_pipeline(dataset_test, batch_size=BATCH_SIZE)
+        dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test)).with_options(options)
+        dataset_test = dp.preprocessing_pipeline(dataset_test, batch_size=batch_size)
         tf.debugging.set_log_device_placement(True)
         gpus = tf.config.list_logical_devices('GPU')
         mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
+        
         with mirrored_strategy.scope():
             # load pretrained model
-            model = tf.keras.models.load_model(model_path)
+            model = tf.keras.models.load_model(model_provided) if type(model_provided) is str else tf.keras.models.clone_model(model_provided)
         # fit model to k-folded data
-        hist = model.fit(dataset_train, epochs = EPOCHS, verbose = 1, validation_data=dataset_test)
+        hist = model.fit(dataset_train, epochs=epochs, verbose=1, validation_data=dataset_test)
         del model
         # add metric history to accumulator
         k_history.append(hist.history)
