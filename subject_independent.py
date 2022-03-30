@@ -62,6 +62,7 @@ def no_pretrain_inner_speech():
     data = data.reshape(*data.shape, 1)
     print("Data Prepared.")
     ###### MODEL
+    gpus = tf.config.list_logical_devices('GPU')
     mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
     with mirrored_strategy.scope():
         # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
