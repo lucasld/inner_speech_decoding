@@ -124,7 +124,7 @@ def pretrained_all_classes(subject, complete_dataset):
     history_accumulator = []
     for n in range(N_CHECKS):
         # kfold testing of transfer learning
-        k_history = kfold_training(subject_data_is, subject_events_is, path)
+        k_history = kfold_training(subject_data_is, subject_events_is, path, BATCH_SIZE, EPOCHS)
         # add kfold metric-history
         history_accumulator += k_history
         print("\n\nN: ", n, "     ######################\n")
