@@ -157,50 +157,68 @@ def kfold_training_pretrained(data, labels, path, k=4):
 # model loading in kfold_training verbessern mit cloning erweitern
 
 
-def subject_train_test_average(subject, complete_dataset):
+def subject_dependent_modelling(subject, complete_dataset):
+    """Determine the performance of models to predict the inner speech data of
+    one subject. The models are pretrained on all subjects 3 conditions and the
+    two non-inner speech conditions of the subject in question.
+
+    :param subject: the subject whose inner speech data should be predicted
+    :type subject: integer from 1 to 10
+    :param complete_dataset: a collection of all subjects available data
+    :type complete_dataset: a list of data, event tuples
+    :return: the history of the training and pretraining
+    :rtype: list of dictonaries for every model that was created; N_CHECKS * 4
+    """
     tf.keras.backend.clear_session()
     print(f"TESTING SUBJECT {subject}")
-    # subject data
+    ###### INNER SPEECH SUBJECT DATA
+    # collect subject's data and events
     subject_data_is, subject_events_is = complete_dataset[subject - 1]
+    # save memory by converting from 64bit to 32bit floats
     subject_data_is = subject_data_is.astype(np.float32)
+    # filter out only the inner speech condition
     subject_data_is, subject_events_is = dp.choose_condition(subject_data_is,
                                                              subject_events_is,
                                                              'inner speech')
+    # select the column containing directions (up, down, left, right)
     subject_events_is = subject_events_is[:, 1]
-    subject_events_is = np_utils.to_categorical(subject_events_is, num_classes=4)
+    # one-hot event data 
+    subject_events_is = np_utils.to_categorical(subject_events_is, 4)
+    # zscore normalize the data
     subject_data_is = scipy.stats.zscore(subject_data_is, axis=1)
     # reshape
     subject_data_is = subject_data_is.reshape(*subject_data_is.shape, 1)
     
-    # pretrain data
+    ###### PRETRAIN DATA
+    # concatenate all other subject's data and events
     pretrain_data = np.concatenate([data for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
     pretrain_events = np.concatenate([target for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
-    print(pretrain_data.shape)
     # append all non 'inner-speech'-conditions from subject 8
-    subject_data_all, subject_events_all = complete_dataset[subject - 1]
     for cond in ['pronounced speech', 'visualized condition']:
-        data_subject_nis, events_subject_nis = dp.choose_condition(subject_data_all, subject_events_all, cond)
-        pretrain_data = np.append(pretrain_data, data_subject_nis, axis=0)
-        pretrain_events = np.append(pretrain_events, events_subject_nis, axis=0)
+        data_sub_non_is, events_sub_non_is = dp.choose_condition(*complete_dataset[subject - 1], cond)
+        # add the subjects non inner speech data to rest of the pretrain data
+        pretrain_data = np.append(pretrain_data, data_sub_non_is, axis=0)
+        pretrain_events = np.append(pretrain_events, events_sub_non_is, axis=0)
+    # same preprocessing as for the subjects inner speech data commented above
     pretrain_data = pretrain_data.astype(np.float32)
-    # filter relevant column from events
     pretrain_events = pretrain_events[:, 1]
-    # one hot events
     pretrain_events = np_utils.to_categorical(pretrain_events, num_classes=4)
-    # normlize data
     pretrain_data = scipy.stats.zscore(pretrain_data, axis=1)
-    # reshape
     pretrain_data = pretrain_data.reshape(*pretrain_data.shape, 1)
 
-    # Pretrain Model ----------
+    ###### PRETRAIN MODEL
     print("Pretraining...")
     tf.debugging.set_log_device_placement(True)
     gpus = tf.config.list_logical_devices('GPU')
+    # tensorflows mirrored strategy adds support to do synchronous distributed
+    # training on multiple GPU's
     mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
     with mirrored_strategy.scope():
+        # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
         model_pretrain = EEGNet(nb_classes=4, Chans=pretrain_data.shape[1],
                                 Samples=pretrain_data.shape[2], dropoutRate=DROPOUT,
                                 kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
+        # adam optimizer
         optimizer = tf.keras.optimizers.Adam()
     options = tf.data.Options()
     options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
@@ -252,6 +270,7 @@ def subject_train_test_average(subject, complete_dataset):
 
 
 if __name__ == '__main__':
+    # read in command line options
     opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:t:")
     now = datetime.datetime.now()
     title =f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
@@ -274,7 +293,7 @@ if __name__ == '__main__':
         if name == '-b': BATCH_SIZE = int(arg)
         if name == '-p': PRETRAIN_EPOCHS = int(arg)
         if name == '-t': title = arg
-    
+    # if pretrain epochs where not specified, pretrain epochs equal epochs
     if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
     """
     gpus = tf.config.list_physical_devices('GPU')
@@ -307,8 +326,9 @@ if __name__ == '__main__':
     subjects_data_collection = [dp.load_data(subjects=[s]) for s in range(1,11)]
     result_collection = []
     for subject in SUBJECT_S:
-        # option 1: execute code with extra process
-        subject_history, pretrain_history = subject_train_test_average(subject, subjects_data_collection)
+        # determine performance of a model that is pretrained on all the data
+        # except inner speech data of one subject
+        subject_history, pretrain_history = subject_dependent_modelling(subject, subjects_data_collection)
         # check gpu storage availablity
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)
@@ -318,6 +338,7 @@ if __name__ == '__main__':
             os.mkdir(f'./{title}')
         except:
             pass
+        # write results to file
         f = open(f'./{title}/results.txt', 'a')
         f.write(f"\nSubject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n")
         f.close()
@@ -331,4 +352,5 @@ if __name__ == '__main__':
     f = open(f'./{title}/results.txt', 'a')
     f.write(f"\n\n{result_collection}")
     f.close()
+    # plot all results
     plot_inter_train_results(result_collection, f'./{title}/all_subjects', pretrain_res=pretrain_history)
