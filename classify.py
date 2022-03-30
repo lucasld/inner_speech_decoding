@@ -223,7 +223,9 @@ def subject_dependent_modelling(subject, complete_dataset):
     options = tf.data.Options()
     options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
     dataset = tf.data.Dataset.from_tensor_slices((pretrain_data, pretrain_events)).with_options(options)
+    # cache, shuffle, batch, prefetch
     dataset = dp.preprocessing_pipeline(dataset, batch_size=BATCH_SIZE)
+    # compile model
     model_pretrain.compile(loss='categorical_crossentropy',
                             optimizer=optimizer,
                             metrics=['accuracy'])
