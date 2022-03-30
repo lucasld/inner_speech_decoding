@@ -140,9 +140,22 @@ def kfold_training(data, labels, model_path, batch_size, epochs, k=4):
         tf.debugging.set_log_device_placement(True)
         gpus = tf.config.list_logical_devices('GPU')
         mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
+        ###### MODEL
+        gpus = tf.config.list_logical_devices('GPU')
+        mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
         with mirrored_strategy.scope():
-            # load pretrained model
-            model = tf.keras.models.load_model(model_path)
+            # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
+            model = EEGNet(nb_classes=4, Chans=data.shape[1],
+                                    Samples=data.shape[2], dropoutRate=DROPOUT,
+                                    kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16,
+                                    dropoutType='Dropout')
+            # adam optimizer
+            optimizer = tf.keras.optimizers.Adam()
+        # compile model
+        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+        #with mirrored_strategy.scope():
+        #    # load pretrained model
+        #    model = tf.keras.models.load_model(model_path)
         # fit model to k-folded data
         hist = model.fit(dataset_train, epochs=epochs, verbose=1, validation_data=dataset_test)
         del model
