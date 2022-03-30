@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
+import mne
 import numpy as np
 import tensorflow as tf
-from sklearn.preprocessing import RobustScaler, OneHotEncoder
+from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 from sklearn.decomposition import PCA
 import data_preprocessing as dp
@@ -75,23 +76,48 @@ def difference(original, reconstructed, indexes):
     plt.show()
 
 
-def kFoldVisualization(history, evaluation, epochs = 50, folds=10, batchsize=10, save=False, name="kFoldVisualization"):
+def kFoldVisualization(history, evaluation, epochs=50, folds=10, batchsize=10, save=False, name="kFoldVisualization"):
     fig, axs = plt.subplots(folds, 2, figsize=(15, 15))
 
     for i in range(folds):
         temp = history[i]
         axs[i][0].plot(temp['accuracy'])
+        axs[i][0].plot(temp['val_accuracy'])
         axs[i][0].axhline(evaluation[i][1], color='r')
         axs[i][0].axhline(np.average([x[1] for x in evaluation]), color='g', linestyle='--')
         axs[i][0].set(title='Model ' + str(i + 1), ylabel='accuracy', xlabel='epoch')
-        axs[i][0].legend(['train', 'val', 'average val'], loc='upper left')
+        axs[i][0].legend(['train','val', 'test', 'average test'], loc='upper left')
         axs[i][1].plot(temp['loss'])
+        axs[i][1].plot(temp['val_loss'])
         axs[i][1].axhline(evaluation[i][0], color='r')
         axs[i][1].axhline(np.average([x[0] for x in evaluation]), color='g', linestyle='--')
         axs[i][1].set(title='Model ' + str(i + 1), ylabel='loss', xlabel='epoch')
-        axs[i][1].legend(['train', 'val', 'average val'], loc='upper left')
-    if save == True:
+        axs[i][1].legend(['train', 'val', 'test', 'average test'], loc='upper left')
+    if save:
         plt.savefig(f'figures/KFold_Cross_Validation/{name}_e{epochs}_bs{batchsize}_f{folds}')
+        plt.clf()
+    else:
+        plt.show()
+
+
+def pretrainingVisualization(history, evaluation, epochs=50, batchsize=10, save=False, name="kFoldVisualization"):
+    fig, axs = plt.subplots(2, 1, figsize=(15, 8))
+
+    temp = history[0]
+    axs[0].plot(temp['accuracy'])
+    axs[0].plot(temp['val_accuracy'])
+    axs[0].axhline(evaluation[0][1], color='r')
+    axs[0].axhline(np.average([x[1] for x in evaluation]), color='g', linestyle='--')
+    axs[0].set(title='Model Accuracy', ylabel='accuracy', xlabel='epoch')
+    axs[0].legend(['train', 'val', 'test', 'average test'], loc='upper left')
+    axs[1].plot(temp['loss'])
+    axs[1].plot(temp['val_loss'])
+    axs[1].axhline(evaluation[0][0], color='r')
+    axs[1].axhline(np.average([x[0] for x in evaluation]), color='g', linestyle='--')
+    axs[1].set(title='Model Loss', ylabel='loss', xlabel='epoch')
+    axs[1].legend(['train', 'val', 'test', 'average test'], loc='upper left')
+    if save:
+        plt.savefig(f'figures/KFold_Cross_Validation/{name}_e{epochs}_bs{batchsize}')
         plt.clf()
     else:
         plt.show()
@@ -100,7 +126,7 @@ def kFoldVisualization(history, evaluation, epochs = 50, folds=10, batchsize=10,
 """ Data wrangling methods"""
 
 
-def data_prep(subjects=range(1, 11),
+def load_data(subjects=range(1, 11),
               condition=['inner speech', 'pronounced speech', 'visualized condition'],
               time=[1, 3.5]):
     """ Create the initial pca data to train a network
@@ -110,19 +136,6 @@ def data_prep(subjects=range(1, 11),
     :type condition: list of the condition names, standard is all three conditions
     :param time: Time frame extracted from the whole eeg trial
     :type time: array of floats [start, end]
-    :param pca_type: type of pca we want to apply to the data coded as integers.
-                        0: no pca
-                        1: pca on reshaped data
-                        2: pca on the channels
-                        3: pca on the timepoints
-    :type pca_type: integer, optional
-    :param pca_condi: additional parameter only used for pca_type 2 and 3.
-                        0: pca is fit on the mean of all datapoints
-                        1: pca is fit onto each datapoint inividually
-    :type pca_condi: Integer, optional
-    :param pca_components: Number of components of the pca
-    :type pca_components: Either float < 1 to tell the percentage of variance explained
-                        or an Integer defining the total number of components
     :return dictionary of datapoints, events, scaler and pca with the experimental conditions as keys
     :rtype float, float, RobustScaler, PCA
     """
@@ -150,32 +163,97 @@ def data_prep(subjects=range(1, 11),
         d[condi] = temp_data
     return d, e
 
+def load_single_subj(subject,
+                     condition=['inner speech', 'pronounced speech', 'visualized condition'],
+                     time=[1, 3.5],
+                     channels=None, path='./dataset'):
+    data_collection = np.empty((0, 128 if not channels else len(channels), 1153))
+    events_collection = np.empty((0, 4), dtype=int)
+    for ses in [1, 2, 3]:
+        try:
+            path_part = path + '/derivatives/sub-' + str(subject).zfill(2) + \
+                        '/ses-0' + str(ses) + '/sub-' + str(subject).zfill(2) + \
+                        '_ses-0' + str(ses)
+            # load data
+            file_name = path_part + '_eeg-epo.fif'
+            data = mne.read_epochs(file_name, verbose='WARNING')
+            if channels: data = data.pick_channels(channels)
+            data_collection = np.append(data_collection, data._data, axis=0)
+
+            # load events
+            file_name = path_part + '_events.dat'
+            events = np.load(file_name, allow_pickle=True)
+            events_collection = np.append(events_collection, events, axis=0)
+        except:
+            pass
+        d = {}
+        e = {}
+        # oneHot = OneHotEncoder(categories=4)
+        # temp = np.array(events[:, 1]).reshape(-1,1)
+        # oneHot.fit(temp)
+        for condi in condition:
+            # print('*** Data Prep: ', condi)
+            # print('---Load Data---')
+            s = RobustScaler()
+            temp_data, temp_events = dp.choose_condition(data_collection, events_collection, condi)
+            temp_events = np.array(temp_events[:, 1])  # .reshape(-1,1)
+
+            # print('data shape: ', temp_data.shape)
+            # print('events shape: ', temp_events.shape)
+            # temp_data = oneHot.transform(temp_events)
+            temp_data = temp_data[:, :, int(time[0] * 256):int(time[1] * 256)]
+            temp_data = s.fit_transform(temp_data.reshape(-1, temp_data.shape[-1])).reshape(temp_data.shape)
+            # print('--- preprocess Data ---')
+            # print('data shape: ', temp_data.shape)
+            # print('events shape: ', temp_events.shape)
+            e[condi] = temp_events
+            d[condi] = temp_data
+
+    return d, e
+
 
 """ Methods to apply PCA on EEG data"""
 
 
-def apply_pca(data, pca_type=0, pca_condi=0, pca_components=0.98):
-    #print('---Apply PCA---')
-    if pca_type == 1:
-        temp_data = reshape_pca(data, pca_components)
-    elif pca_type == 2:
-        temp_data = channel_pca(data, pca_components, pca_condi)
-    elif pca_type == 3:
-        temp_data = time_pca(data, pca_components, pca_condi)
+def apply_pca(data, pca_type=2, pca_condi=0, pca_components=0.98):
+    """
+    Method that applies the chosen type of pca on an eeg dataset
+    :param data:eeg data
+    :type data: array of shape trials, channel, time
+    :param pca_type: type of pca we want to apply to the data coded as integers.
+                        1: pca on reshaped data
+                        2: pca on the channels
+                        3: pca on the timepoints
+    :type pca_type: integer, optional
+    :param pca_condi: additional parameter only used for pca_type 2 and 3.
+                        0: pca is fit on the mean of all datapoints
+                        1: pca is fit onto each datapoint inividually
+    :type pca_condi: Integer, optional
+    :param pca_components: Number of components of the pca
+    :type pca_components: Either float < 1 to tell the percentage of variance explained
+                        or an Integer defining the total number of components
+    :return:
+    """
+    if pca_type == 1:  # flatten the channel*time dimension and apply pca
+        data = reshape_pca(data, pca_components)
+    elif pca_type == 2:  # reduce the numbers of channels with pca
+        data = channel_pca(data, pca_components, pca_condi)
+    elif pca_type == 3:  # reduce the time component with pca
+        data = time_pca(data, pca_components, pca_condi)
 
-    return np.array(temp_data)
+    return np.array(data)
 
 
-def reshape_pca(input, components):
+def reshape_pca(data, components):
     """ Applies PCA on the flattened inout data
-    :param input: eeg data
-    :type input: array of shape trials, channel, time
+    :param data: eeg data
+    :type data: array of shape trials, channel, time
     :param components: number of components of the pca
     :type components: Either float < 1 to tell the percentage of variance explained
                         or an Integer defining the total number of components
     :return pca transformed data and the pca object
     :rtype array of shape trials, channels*time and the fit pca object """
-    data = input.reshape(input.shape[0], input.shape[1] * input.shape[2])
+    data = data.reshape(data.shape[0], data.shape[1] * data.shape[2])
     pca = PCA(n_components=components)
     data = pca.fit_transform(data)
     return data
@@ -183,8 +261,8 @@ def reshape_pca(input, components):
 
 def channel_pca(data, components, pca_condi=0):
     """ Applies PCA on the channel part of the input data
-    :param input: eeg data
-    :type input: array of shape trials, channel, time
+    :param data: eeg data
+    :type data: array of shape trials, channel, time
     :param components: number of components of the pca
     :type components: Either float < 1 to tell the percentage of variance explained
                         or an Integer defining the total number of components
@@ -246,55 +324,61 @@ def time_pca(data, components, pca_condi=0):
 
 """ Training Methods"""
 
-def data_preprocessing(data, events, batchsize = 10):
-    data = tf.data.Dataset.from_tensor_slices(data, events)
 
-    #expand dimension
-    data = data.map(lambda image, event: (tf.expand_dims(image, axis = -1), event))
-    #cache this progress in memory, as there is no need to redo it; it is deterministic after all
-    data = data.cache()
-    #shuffle, batch, prefetch
-    data = data.shuffle(100)
-    data = data.batch(batchsize)
-    data = data.prefetch(batchsize*2)
-    #return preprocessed dataset
-    return data
+def data_preprocessing(x_train, y_train, x_test, y_test, pca_type, pca_components, pca_condition, batchsize=10):
+    # print('--- PCA ---')
+    if pca_type:
+        x_train = apply_pca(x_train, pca_type=pca_type, pca_components=pca_components, pca_condi=pca_condition)
+        x_test = apply_pca(x_test, pca_type=pca_type, pca_components=pca_components, pca_condi=pca_condition)
+
+    x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
+    x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], x_test.shape[2], 1)
+
+    # Prepare the training dataset
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    train_dataset = train_dataset.shuffle(buffer_size=10).batch(batch_size=batchsize)
+
+    # Now we get a test dataset.
+    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    test_dataset = test_dataset.batch(batch_size=batchsize)
+
+    # return preprocessed dataset
+    return train_dataset, test_dataset
+
+
 def kFoldTraining(data, model, loss='sparse_categorical_crossentropy', optimizer='adam',
-                  epochs=10, batchsize=10, folds=10,
+                  epochs=10, batchsize=10, folds=10, random_state=None,
                   save=False, model_name='model', filename='model',
                   pca_type=2, pca_components=46, pca_condition=0):
     X, Y = data
     hist = []
     eval = []
     cvscores = []
+    path = ''
 
     i = 1
 
-    for train_index, test_index in StratifiedKFold(folds, shuffle=True, random_state=5).split(X, Y):
+    for train_index, test_index in StratifiedKFold(folds, shuffle=True, random_state=random_state).split(X, Y):
         tf.keras.backend.clear_session()
         print('START SPLIT', i)
         # print('--- create training and test data ---')
         x_train, x_test = X[train_index], X[test_index]
         y_train, y_test = Y[train_index], Y[test_index]
 
-        # print('--- PCA ---')
-
-        x_train = apply_pca(x_train, pca_type=pca_type, pca_components=pca_components, pca_condi=pca_condition)
-        x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
-        x_test = apply_pca(x_test, pca_type=pca_type, pca_components=pca_components, pca_condi=pca_condition)
-        x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], x_test.shape[2], 1)
+        train_dataset, test_dataset = data_preprocessing(x_train, y_train, x_test, y_test, pca_type, pca_components,
+                                                         pca_condition, batchsize)
 
         print('--- Initialize model ---')
         model = model
         model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 
         # print('--- Fit model ---')
-        temp = model.fit(x_train, y_train, batch_size=batchsize, epochs=epochs, verbose=0, validation_data=(x_test, y_test))
+        temp = model.fit(train_dataset, epochs=epochs, verbose=0, validation_data=test_dataset)
 
         hist.append(temp.history)
 
         # print('--- Evaluate model ---')
-        score = model.evaluate(x_test, y_test, verbose=0)
+        score = model.evaluate(test_dataset, verbose=0)
         eval.append(score)
         cvscores.append(score[1] * 100)
         print("%s: %.2f%%" % (model.metrics_names[1], score[1] * 100))
@@ -306,64 +390,58 @@ def kFoldTraining(data, model, loss='sparse_categorical_crossentropy', optimizer
     print("Validation acc: %.2f%% (+/- %.2f%%)" % (np.mean(cvscores), np.std(cvscores)))
 
     f = open(f"results/{filename}_e{epochs}_f{folds}_bs{batchsize}_results.txt", "a")
-    f.write('\n'.join([f"Average Accuracy: {np.mean(cvscores)}", f'{eval}', f'Model history: {hist}', "\n\n\n"]))
+    f.write('\n'.join([f"Average Accuracy: {np.mean(cvscores)}", f'{eval}', f"STD: {np.std(cvscores)}",
+                       f'Model history: {hist}', "\n\n\n"]))
     f.close()
 
     return hist, eval, cvscores, path
 
 
-
 def pretraining(data, model, loss='sparse_categorical_crossentropy', optimizer='adam',
-                  epochs=10, batchsize=10, folds=10,
-                  save=False, model_name='model', filename='model',
-                  pca_type=2, pca_components=46, pca_condition=0):
+                epochs=10, batchsize=10, test_size=0.1, train_size=0.9,
+                save=False, model_name='model', filename='model',
+                pca_type=2, pca_components=46, pca_condition=0):
     X, Y = data
     hist = []
     eval = []
     cvscores = []
-
-    i = 1
+    path = ''
 
     model = model
     model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 
-    np.random.shuffle()
-    for train_index, test_index in StratifiedShuffleSplit(1, test_size=0.1, train_size=0.9, random_state=1).split(X, Y):
+    for train_index, test_index in StratifiedShuffleSplit(1, test_size=test_size, train_size=train_size, random_state=1).split(X, Y):
         tf.keras.backend.clear_session()
-        print('START SPLIT', i)
-        # print('--- create training and test data ---')
+        print('START')
+        # create training and test data
         x_train, x_test = X[train_index], X[test_index]
         y_train, y_test = Y[train_index], Y[test_index]
 
-        # print('--- PCA ---')
+        # prepare tensorflow datasets from the splits
+        train_dataset, test_dataset = data_preprocessing(x_train, y_train, x_test, y_test, pca_type, pca_components,
+                                                         pca_condition, batchsize)
 
-        x_train = apply_pca(x_train, pca_type=pca_type, pca_components=pca_components, pca_condi=pca_condition)
-        x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
-        x_test = apply_pca(x_test, pca_type=pca_type, pca_components=pca_components, pca_condi=pca_condition)
-        x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], x_test.shape[2], 1)
-
-
-        # print('--- Fit model ---')
-        temp = model.fit(x_train, y_train, batch_size=batchsize, epochs=epochs, verbose=0, validation_data=(x_test, y_test))
+        # Fit model
+        temp = model.fit(train_dataset, epochs=epochs, verbose=0, validation_data=test_dataset)
 
         hist.append(temp.history)
 
-        # print('--- Evaluate model ---')
-        score = model.evaluate(x_test, y_test, verbose=0)
+        # Evaluate model
+        score = model.evaluate(test_dataset, verbose=0)
         eval.append(score)
         cvscores.append(score[1] * 100)
         print("%s: %.2f%%" % (model.metrics_names[1], score[1] * 100))
 
-        i += 1
     print("Validation acc: %.2f%% (+/- %.2f%%)" % (np.mean(cvscores), np.std(cvscores)))
     if save:
         folder = f"test_models/Pretraining/"
-        name = f"{model_name}_e{epochs*folds}_bs{batchsize}_vacc{int(np.mean(cvscores))}_vstd{int(np.std(cvscores))}"
+        name = f"{model_name}_e{epochs}_bs{batchsize}_vacc{int(np.mean(cvscores))}_vstd{int(np.std(cvscores))}"
         path = folder + name
         tf.keras.models.save_model(model, path)
 
-    f = open(f"results/{filename}_e{epochs}_f{folds}_bs{batchsize}_results.txt", "a")
-    f.write('\n'.join([f"Average Accuracy: {np.mean(cvscores)}", f'{eval}', f'Model history: {hist}', "\n\n\n"]))
+    f = open(f"results/{filename}_e{epochs}_bs{batchsize}_results.txt", "a")
+    f.write('\n'.join([f"Average Accuracy: {np.mean(cvscores)}", f"STD: {np.std(cvscores)}",
+                       f'{eval}', f'Model history: {hist}', "\n\n\n"]))
     f.close()
 
     return hist, eval, cvscores, path

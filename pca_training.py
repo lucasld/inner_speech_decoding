@@ -1,15 +1,29 @@
 import PCA.pca_Methods as pm
 import PCA.pca_Models as pmod
 import models.EEGNet as me
-import pandas as pd
 import numpy as np
 import tensorflow as tf
 
 print('--- Load data ---')
-#data = pd.read_csv('dataset/preprocessed/channel_pca98_df_flat_42x640')
-#label = pd.read_csv('dataset/preprocessed/label')
 
-data, events = pm.data_prep(subjects=range(1, 3))
+data, events = pm.load_data(subjects=range(1, 11))
+
+PCA_TYPE = 2
+PCA_COMPONENTS = 46
+PCA_CONDITION = 0
+
+TRAIN_SIZE = 0.75
+TEST_SIZE = 0.25
+
+DROPOUT = 0.4
+BATCHSIZE = 15
+EPOCHS = 15
+
+
+model = pmod.SmallConv(10, DROPOUT)
+
+MODELNAME = 'NPSmallConv1_i10' # 'EEGNet1_D08_Kl3'
+"""
 print('--- Prepare Pretraining Data ---')
 
 preX = np.array(data['pronounced speech'])
@@ -19,27 +33,47 @@ preY = np.concatenate([preY, events['visualized condition']], axis=0)
 preY = np.array(preY)
 
 print('--- Pretraining ---')
-""" Model me.EEGNet(nb_classes = 4, Chans = 42,
-                   Samples =640, dropoutRate = 0.8,
-                   kernLength = 2, F1 = 8, D = 3, F2 = 16,
-                   dropoutType = 'Dropout')"""
-print('--- Run1 ---')
+
+
+
+#model = me.EEGNet(nb_classes=4, Chans=PCA_COMPONENTS, Samples=640, dropoutRate=0.3, kernLength=2, F1=8, D=3, F2=16,
+ #                 dropoutType='Dropout')
+
 pre_hist, pre_eval, _, path = pm.pretraining(data=(preX, preY),
-                                               model=pmod.SmallConv(),
-                                               batchsize=10, folds=10, epochs=20,
-                                               save=False, model_name='sC1', filename='sC1_p1')
-pm.kFoldVisualization(pre_hist, pre_eval, folds = 10, save=False, name="Pretraining_Run1_sC1")
+                                             model=model,
+                                             batchsize=BATCHSIZE, epochs=EPOCHS,
+                                             train_size=TRAIN_SIZE, test_size=TEST_SIZE,
+                                             save=True, model_name=MODELNAME, filename=f'{MODELNAME}_pretrain',
+                                             pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS,
+                                             pca_condition=PCA_CONDITION)
+pm.pretrainingVisualization(pre_hist, pre_eval, epochs=EPOCHS, batchsize=BATCHSIZE, save=True,
+                            name=f"{MODELNAME}_Pretraining")
 
-print('--- Pretraining done ---')
-
+print('--- Pretraining done ---') """
 print('--- Prepare Training Data ---')
+
 X = np.array(data['inner speech'])
 Y = np.array(events['inner speech'])
 
 print('--- Start k-fold Cross Validation ---')
-#path = 'test_models/Pretraining/sC1_e600_bs10_vacc32_vstd2'
-hist, eval, cvs, _ = pm.kFoldTraining(data=(X, Y), model=tf.keras.models.load_model(path),
-                                      batchsize=10, epochs=10, folds=10,
-                                      save=False, model_name='sC1', filename='sC1_Training')
-pm.kFoldVisualization(hist, eval, folds=10, epochs=10, batchsize=10, save=False, name="Training_sC1")
+
+PCA_TYPE = 2
+PCA_COMPONENTS = 46
+PCA_CONDITION = 0
+BATCHSIZE = 10
+EPOCHS = 10
+FOLDS = 10
+path = 'test_models/Pretraining/SmallConv1_i10_e15_bs15_vacc26_vstd0'
+
+
+#data, events = pm.load_single_subj(10)
+#X = np.array(data['inner speech'])
+#Y = np.array(events['inner speech'])
+#MODELNAME = 'SmallConv1_i10_sub'+str(10)
+hist, ev, cvs, _ = pm.kFoldTraining(data=(X, Y), model=tf.keras.models.load_model(path),
+                                    batchsize=BATCHSIZE, epochs=EPOCHS, folds=FOLDS,
+                                    save=False, model_name='SC1_C2D+03', filename=f'{MODELNAME}_Training',
+                                    pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS, pca_condition=PCA_CONDITION)
+pm.kFoldVisualization(hist, ev, folds=FOLDS, epochs=EPOCHS, batchsize=BATCHSIZE, save=True,
+                      name=f"{MODELNAME}_Training")
 print('--- k-fold Cross Validation done ---')
