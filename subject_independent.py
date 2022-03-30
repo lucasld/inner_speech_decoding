@@ -75,11 +75,11 @@ def no_pretrain_inner_speech():
     # compile model
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     model.build(input_shape=(BATCH_SIZE, *data.shape[1:]))
-    path = './models/saved_models/no_pretrain_inner_speech'
-    model.save(path)
+    #path = './models/saved_models/no_pretrain_inner_speech'
+    #model.save(path)
     #del model
     ###### KFOLD TRAINING
-    kfold_training(data, events, BATCH_SIZE, EPOCHS, path)
+    kfold_training(data, events, BATCH_SIZE, EPOCHS, model)
 
 
 def pretrain_non_inner_speech():
