@@ -52,7 +52,7 @@ def augment_pipe(data, events, noise):
     
     return aug_data, events
 
-
+"""
 def kfold_training(data, labels, k=4):
     data, labels = sklearn.utils.shuffle(data, labels)
     # create k data and label splits
@@ -100,7 +100,7 @@ def kfold_training(data, labels, k=4):
         print("Classification accuracy: %f " % (acc))
         kfold_acc.append(acc)
     return kfold_acc
-
+"""
 
 def kfold_training(data, labels, model_path, k=4):
     """K-Fold train and test a model on data and labels.
