@@ -7,19 +7,29 @@ from scipy import stats
 import utilities
 
 
-def load_data(subjects=range(1,11), channels=None, path='./dataset'):
+def load_data(subjects=range(1,11), channels=None, filter_action=False, path='./dataset'):
     """Load EEG-Data and Event-Data into a numpy array.
     
     :param subjects: array of subjects from which the sessions should be
         loaded, defaults to subjects 1 to 10
     :type subjects: array of integers, optional
+    :param channels: set of channels to be extracted, defaults to None so every
+        available channel will be extracted
+    :type channels: list of strings
+    :param filter_action: if True the action interval will be filtered out,
+        defaults to False
+    :type filter_action: boolean, optional
     :param path: path to dataset-directory, defaults to './dataset'
     :type path: string, optional
     :return: eeg-data and event data in seperate arrays
     :rtype: tuple of two numpy arrays
     """
-    data_collection = np.empty((0, 128 if not channels else len(channels), 1153))
-    events_collection = np.empty((0, 4), dtype=int)
+    # initialize arrays to hold loaded data
+    #data_collection = np.empty((0, 128 if not channels else len(channels), 1153))
+    #events_collection = np.empty((0, 4), dtype=int)
+    data_collection = []
+    events_collection = []
+    # iterate through filestructure
     for sub in subjects:
         for ses in [1, 2, 3]:
             utilities.progress_bar(((sub-1)*3+ses)/(3*len(subjects)))
@@ -31,15 +41,19 @@ def load_data(subjects=range(1,11), channels=None, path='./dataset'):
                 file_name = path_part + '_eeg-epo.fif'
                 data = mne.read_epochs(file_name, verbose='WARNING')
                 if channels: data = data.pick_channels(channels)
-                data_collection = np.append(data_collection, data._data, axis=0)
-
+                #data_collection = np.append(data_collection, data._data, axis=0)
+                data_collection.append(data)
                 # load events
                 file_name =  path_part + '_events.dat'
                 events = np.load(file_name, allow_pickle=True)
-                events_collection = np.append(events_collection, events, axis=0)
+                #events_collection = np.append(events_collection, events, axis=0)
+                events_collection.append(events)
             except:
                 pass
-    
+    data_collection = np.concatenate(data_collection, axis=0)
+    events_collection = np.concatenate(events_collection, axis=0)
+    # filter out action interval
+    if filter_action: filter_interval(data_collection, [1, 3.5], 256)
     return data_collection, events_collection
 
 
@@ -112,7 +126,7 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
 
 
 
-def filter_interval(data, interval, data_frequency):
+def filter_interval(data, interval, data_frequency=256):
     """Cut out a specific interval from a sample of EEG-Data.
     
     :param data: dataset of shape [samples x channels x time]
@@ -127,8 +141,8 @@ def filter_interval(data, interval, data_frequency):
         Relac Interval - 1 s
     :type interval: list of two floating point numbers
     :param data_frequency: specifies the frequency the provided data was
-        measured at
-    :type data_frequency: floating point number
+        measured at, defaults to 256 Herz
+    :type data_frequency: floating point number, optional
     :return: cut sample
     :rtype: tensor
     """ 

@@ -101,6 +101,10 @@ def kfold_training(data, labels, model_path, batch_size, epochs, k=4):
     :type labels: numpy array
     :param model_path: path of the saved model to be used (pretrained or not)
     :type model_path: string
+    :param batch_size: datasets batch size
+    :type batch_size: integer
+    :param epochs: number of epochs for which to train the model
+    :type epochs: integer
     :param k: number of folds the data should be split into when training and
         testing, defaults to 4
     :type k: integer, optional

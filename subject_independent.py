@@ -44,21 +44,8 @@ def no_pretrain_inner_speech():
     :return: metric history for every of the n k-folds
     :rtype: list of dictonaries
     """
-    ###### MODEL
-    # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
-    model = EEGNet(nb_classes=4, Chans=data.shape[1],
-                            Samples=data.shape[2], dropoutRate=DROPOUT,
-                            kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16,
-                            dropoutType='Dropout')
-    # adam optimizer
-    optimizer = tf.keras.optimizers.Adam()
-    # compile model
-    model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
-    path = './models/saved_models/no_pretrain_inner_speech'
-    model.save(path)
-    del model
     ###### DATA
-    data, events = dp.load_data()
+    data, events = dp.load_data(filter_action=True)
     # shuffle data and labels
     data, events = sklearn.utils.shuffle(data, events)
     # save memory by converting from 64bit to 32bit floats
@@ -73,8 +60,25 @@ def no_pretrain_inner_speech():
     data = scipy.stats.zscore(data, axis=1)
     # reshape
     data = data.reshape(*data.shape, 1)
+    print("Data Prepared.")
+    ###### MODEL
+    mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
+    with mirrored_strategy.scope():
+        # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
+        model = EEGNet(nb_classes=4, Chans=data.shape[1],
+                                Samples=data.shape[2], dropoutRate=DROPOUT,
+                                kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16,
+                                dropoutType='Dropout')
+        # adam optimizer
+        optimizer = tf.keras.optimizers.Adam()
+    # compile model
+    model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+    model.build(input_shape=(BATCH_SIZE, *data.shape[1:]))
+    path = './models/saved_models/no_pretrain_inner_speech'
+    model.save(path)
+    #del model
     ###### KFOLD TRAINING
-    kfold_training(data, events, path)
+    kfold_training(data, events, BATCH_SIZE, EPOCHS, path)
 
 
 def pretrain_non_inner_speech():
@@ -86,7 +90,7 @@ def pretrain_non_inner_speech():
     :rtype: two lists of dictonaries   
     """
     # load all data
-    data, events = dp.load_data()
+    data, events = dp.load_data(filter_action=True)
     # shuffle data and labels
     data, events = sklearn.utils.shuffle(data, events)
      # save memory by converting from 64bit to 32bit floats
@@ -141,7 +145,7 @@ def pretrain_non_inner_speech():
     history_accumulator = []
     for n in range(N_CHECKS):
         # kfold testing of transfer learning
-        k_history = kfold_training(data_inner_speech, events_inner_speech, path)
+        k_history = kfold_training(data_inner_speech, events_inner_speech, BATCH_SIZE, EPOCHS, path)
         # add kfold metric-history
         history_accumulator += k_history
         print("\n\nN: ", n, "     ######################\n")
