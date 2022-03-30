@@ -102,14 +102,22 @@ def kfold_training(data, labels, k=4):
     return kfold_acc
 
 
-def kfold_training_pretrained(data, labels, path, k=4):
-    """ This function is used to test the effectifness of pretraining the model.
-    First the model will be trained on the other subjects, then the model is
-    trained on one previously unseen subject. Testing of the models accuracy
-    will also only rely on this one subject. (transfer-learning?)
-    
-    data, labels are correspond to the subject to be tested
+def kfold_training_pretrained(data, labels, model_path, k=4):
+    """K-Fold train and test a pretrained model on one subject.
+
+    :param data: subjects data
+    :type data: numpy array
+    :param labels: labels corresponding to data
+    :type labels: numpy array
+    :param model_path: path of the saved pretrained model
+    :type model_path: string
+    :param k: number of folds the data should be split into when training and
+        testing, defaults to 4
+    :type k: integer, optional
+    :return: the history of the k folds
+    :rtype: list containing dictonaries saving the different metrics
     """
+    # shuffle data and labels
     data, labels = sklearn.utils.shuffle(data, labels)
     # create k data and label splits
     X = []
@@ -118,7 +126,7 @@ def kfold_training_pretrained(data, labels, path, k=4):
         n = data.shape[0]
         X.append(data[int(n/k * i):int(n/k * i + n/k)])
         Y.append(labels[int(n/k * i):int(n/k * i + n/k)])
-    
+    # list accumulating every folds metrics 
     k_history = []
     for k_i in range(k):
         tf.keras.backend.clear_session()
@@ -129,8 +137,8 @@ def kfold_training_pretrained(data, labels, path, k=4):
         Y_test = Y[k_i]
         #options = tf.data.Options()
         #options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-        dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train))
-        #dataset_train = dataset_train.with_options(options)
+        # train dataset
+        dataset_train = tf.data.Dataset.from_tensor_slices((X_train, Y_train))#.with_options(options)
         dataset_train = dp.preprocessing_pipeline(dataset_train, batch_size=BATCH_SIZE)
         # test dataset
         dataset_test = tf.data.Dataset.from_tensor_slices((X_test, Y_test))#.with_options(options)
@@ -139,22 +147,14 @@ def kfold_training_pretrained(data, labels, path, k=4):
         gpus = tf.config.list_logical_devices('GPU')
         mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
         with mirrored_strategy.scope():
-            model = tf.keras.models.load_model(path)
-            class_weights = {0:1, 1:1, 2:1, 3:1}
-        hist = model.fit(dataset_train, epochs = EPOCHS, verbose = 1,
-                         validation_data=dataset_test,
-                         class_weight=class_weights)
-        
+            # load pretrained model
+            model = tf.keras.models.load_model(model_path)
+        # fit model to k-folded data
+        hist = model.fit(dataset_train, epochs = EPOCHS, verbose = 1, validation_data=dataset_test)
         del model
+        # add metric history to accumulator
         k_history.append(hist.history)
     return k_history
-
-# + testen obs so geht +
-# subject training vereinzeln
-
-# dataset preloaden und nicht bei jedem subject erneut
-# history plotten / speichern
-# model loading in kfold_training verbessern mit cloning erweitern
 
 
 def subject_dependent_modelling(subject, complete_dataset):
@@ -205,6 +205,15 @@ def subject_dependent_modelling(subject, complete_dataset):
     pretrain_events = np_utils.to_categorical(pretrain_events, num_classes=4)
     pretrain_data = scipy.stats.zscore(pretrain_data, axis=1)
     pretrain_data = pretrain_data.reshape(*pretrain_data.shape, 1)
+    # create train and val tf.datasets
+    options = tf.data.Options()
+    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+    pt_train_ds = tf.data.Dataset.from_tensor_slices((pretrain_data, pretrain_events)).with_options(options)
+     # turn subject data into tf.Dataset to use in pretraining validation
+    pt_val_ds = tf.data.Dataset.from_tensor_slices((subject_data_is[:50], subject_events_is[:50])).with_options(options)
+    # cache, shuffle, batch, prefetch
+    pt_train_ds = dp.preprocessing_pipeline(pt_train_ds, batch_size=BATCH_SIZE)
+    pt_val_ds = dp.preprocessing_pipeline(pt_val_ds, batch_size=BATCH_SIZE)
 
     ###### PRETRAIN MODEL
     print("Pretraining...")
@@ -220,47 +229,34 @@ def subject_dependent_modelling(subject, complete_dataset):
                                 kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
         # adam optimizer
         optimizer = tf.keras.optimizers.Adam()
-    options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-    dataset = tf.data.Dataset.from_tensor_slices((pretrain_data, pretrain_events)).with_options(options)
-    # cache, shuffle, batch, prefetch
-    dataset = dp.preprocessing_pipeline(dataset, batch_size=BATCH_SIZE)
+    
     # compile model
     model_pretrain.compile(loss='categorical_crossentropy',
                             optimizer=optimizer,
                             metrics=['accuracy'])
-    class_weights = {0:1, 1:1, 2:1, 3:1}
-    # turn subject data into tf.Dataset to use in pretraining validation
-    pt_val_dataset = tf.data.Dataset.from_tensor_slices((subject_data_is[:50], subject_events_is[:50])).with_options(options)
-    pt_val_dataset = dp.preprocessing_pipeline(pt_val_dataset,
-                                               batch_size=BATCH_SIZE)
     # fit model to pretrain data
-    pretrain_history = model_pretrain.fit(
-        dataset, epochs=PRETRAIN_EPOCHS, verbose = 1,
-        validation_data=pt_val_dataset, class_weight = class_weights)
+    pretrain_history = model_pretrain.fit(pt_train_ds, epochs=PRETRAIN_EPOCHS,
+                                          verbose=1, validation_data=pt_val_ds)
     print("Pretraining Done")
+    # save pretrained model so it can be used for transfer learning
     path = './models/saved_models/pretrained_model01'
     model_pretrain.save(path)
     del model_pretrain
-    # ------------------------
-    # accumulate all training accs and losses
+
+    ###### TRANSFER LEARNING
     history_accumulator = []
     for n in range(N_CHECKS):
-        # clear gpu memory        
-        #device = cuda.get_current_device()
-        #device.reset()
-        # train k folds
-        print(subject_data_is.shape, subject_events_is.shape)
-        k_history = kfold_training_pretrained(subject_data_is,
-                                              subject_events_is, path)
+        # kfold testing of transfer learning
+        k_history = kfold_training_pretrained(subject_data_is, subject_events_is, path)
+        # add kfold metric-history
         history_accumulator += k_history
-        print("N: ", n, "     ######################\n\n")
+        print("\n\nN: ", n, "     ######################\n")
         print("Mean for K Folds:", np.mean([h['val_accuracy'][-1] for h in k_history]))
         print("New Total Mean:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
+    
     # save progress
     print("Parameter Test Done")
     print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
-    print(history_accumulator)
     print("Parameters")
     print("EPOCHS:", EPOCHS)
     print("SUBJECT:", subject)
@@ -268,7 +264,8 @@ def subject_dependent_modelling(subject, complete_dataset):
     print("KERNEL_LENGTH", KERNEL_LENGTH)
     print("N_CHECKS", N_CHECKS)
     print("BATCH SIZE", BATCH_SIZE)
-    return history_accumulator, pretrain_history.history
+    print(history_accumulator)
+    return pretrain_history.history, history_accumulator
 
 
 if __name__ == '__main__':
@@ -297,21 +294,6 @@ if __name__ == '__main__':
         if name == '-t': title = arg
     # if pretrain epochs where not specified, pretrain epochs equal epochs
     if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
-    """
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        # Create 2 virtual GPUs with 1GB memory each
-        try:
-            tf.config.set_logical_device_configuration(
-                gpus[0],
-                [tf.config.LogicalDeviceConfiguration(memory_limit=3800),
-                tf.config.LogicalDeviceConfiguration(memory_limit=3800)])
-            logical_gpus = tf.config.list_logical_devices('GPU')
-            print(len(gpus), "Physical GPU,", len(logical_gpus), "Logical GPUs")
-        except RuntimeError as e:
-            # Virtual devices must be set before GPUs have been initialized
-            print(e)
-    """
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
         try:
@@ -330,7 +312,7 @@ if __name__ == '__main__':
     for subject in SUBJECT_S:
         # determine performance of a model that is pretrained on all the data
         # except inner speech data of one subject
-        subject_history, pretrain_history = subject_dependent_modelling(subject, subjects_data_collection)
+        pretrain_history, subject_history = subject_dependent_modelling(subject, subjects_data_collection)
         # check gpu storage availablity
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)
@@ -345,7 +327,7 @@ if __name__ == '__main__':
         f.write(f"\nSubject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n")
         f.close()
         f = open(f'./{title}/results.txt', 'a')
-        f.write(f'Pretrain History: {pretrain_history}\nSubject History: {subject_history}\n\n')
+        f.write(f"Pretrain History: {pretrain_history}\nSubject History: {subject_history}\n\n")
         f.close()
         # plot subjects inter-training results
         plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
