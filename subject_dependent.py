@@ -198,7 +198,7 @@ def no_pretrain_inner_speech(subject):
 
 if __name__ == '__main__':
     # read in command line options
-    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:t:")
+    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:t:m:")
     now = datetime.datetime.now()
     title = f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
     for name, arg in opts:
@@ -219,6 +219,7 @@ if __name__ == '__main__':
         if name == '-n': N_CHECKS = int(arg)
         if name == '-b': BATCH_SIZE = int(arg)
         if name == '-p': PRETRAIN_EPOCHS = int(arg)
+        if name == '-m': MODE = arg
         if name == '-t': title = arg
     # if pretrain epochs where not specified, pretrain epochs equal epochs
     if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
