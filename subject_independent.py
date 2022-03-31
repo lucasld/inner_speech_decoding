@@ -79,7 +79,11 @@ def no_pretrain_inner_speech():
     model.save(path)
     del model
     ###### KFOLD TRAINING
-    kfold_training(data, events, path, BATCH_SIZE, EPOCHS)
+    history_accumulator = []
+    for _ in range(N_CHECKS):
+        history = kfold_training(data, events, path, BATCH_SIZE, EPOCHS)
+        history_accumulator.append(history)
+    return history_accumulator
 
 
 def pretrain_non_inner_speech():
