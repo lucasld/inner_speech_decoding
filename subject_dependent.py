@@ -16,23 +16,27 @@ from utilities import plot_inter_train_results
 from classify import kfold_training
 
 # Hyperparameters
-EPOCHS = 40
+EPOCHS = 10
 SUBJECT_S = range(1,11)
-DROPOUT = 0.8
+DROPOUT = 0.4
 KERNEL_LENGTH = 64
-N_CHECKS = 20
-BATCH_SIZE = 40
-PRETRAIN_EPOCHS = -1
+N_CHECKS = 10
+BATCH_SIZE = 10
+PRETRAIN_EPOCHS = 35
 MODE = 'pretrained'
+FREEZE_LAYERS = []
 
 
-def pretrained_all_classes(subject, train_subjects=range(1,11)):
+def pretrained_all_classes(subject, train_subjects=range(1,11), freeze_layers=[]):
     """Determine the performance of models to predict the inner speech data of
     one subject. The models are pretrained on all subjects 3 conditions and the
     two non-inner speech conditions of the subject in question.
 
     :param subject: the subject whose inner speech data should be predicted
     :type subject: integer from 1 to 10
+    :param freeze_layers: all indices of layers that should be frozen after
+        pretraining the network
+    :type freeze_layers: list of integers
     :return: the history of the training and pretraining
     :rtype: list of dictonaries for every model that was created; N_CHECKS * 4
     """
@@ -224,7 +228,7 @@ def no_pretrain_inner_speech(subject):
 
 if __name__ == '__main__':
     # read in command line options
-    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:t:m:")
+    opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:t:m:f:")
     now = datetime.datetime.now()
     title = f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
     for name, arg in opts:
@@ -247,6 +251,7 @@ if __name__ == '__main__':
         if name == '-p': PRETRAIN_EPOCHS = int(arg)
         if name == '-m': MODE = arg
         if name == '-t': title = arg
+        if name == '-f': FREEZE_LAYERS = list(map(int, arg.split(',')))
     # if pretrain epochs where not specified, pretrain epochs equal epochs
     if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
     gpus = tf.config.list_physical_devices('GPU')
@@ -268,7 +273,8 @@ if __name__ == '__main__':
         # except inner speech data of one subject
         if MODE == 'pretrained':
             print("Pretrained Model!")
-            pretrain_history, subject_history = pretrained_all_classes(subject, train_subjects=[subject])
+            pretrain_history, subject_history = pretrained_all_classes(
+                subject, train_subjects=[subject], freeze_layers=FREEZE_LAYERS)
         elif MODE == 'no_pretrain':
             print("NO Pretraining!")
             pretrain_history = []
