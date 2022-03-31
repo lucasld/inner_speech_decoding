@@ -15,6 +15,7 @@ from numba import cuda
 import nvsmi
 import datetime
 import os
+import sklearn
 tf.autograph.set_verbosity(3)
 import logging
 logging.getLogger('tensorflow').disabled = True
