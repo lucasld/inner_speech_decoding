@@ -243,8 +243,10 @@ if __name__ == '__main__':
         # determine performance of a model that is pretrained on all the data
         # except inner speech data of one subject
         if MODE == 'pretrained':
+            print("Pretrained Model!")
             pretrain_history, subject_history = pretrained_all_classes(subject)
         elif MODE == 'no_pretrain':
+            print("NO Pretraining!")
             pretrain_history = []
             subject_history = no_pretrain_inner_speech(subject)
 
