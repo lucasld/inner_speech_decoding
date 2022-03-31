@@ -192,7 +192,8 @@ def no_pretrain_inner_speech(subject):
     history_accumulator = []
     for _ in range(N_CHECKS):
         history = kfold_training(data, events, path, BATCH_SIZE, EPOCHS)
-        history_accumulator.append(history)
+        history_accumulator += history
+    print(history_accumulator)
     print("Subject", subject, "  Mean Accuracy:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
     return history_accumulator
 
