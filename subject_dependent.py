@@ -266,8 +266,9 @@ if __name__ == '__main__':
             # Memory growth must be set before GPUs have been initialized
             print(e)
 
-    final_acc_mean_accumulator = []
-    result_collection = []
+    # accumulators to track pretrain and train history
+    pretrain_acc = []
+    train_acc = []
     for subject in SUBJECT_S:
         # determine performance of a model that is pretrained on all the data
         # except inner speech data of one subject
@@ -302,11 +303,16 @@ if __name__ == '__main__':
                     Subject History: {subject_history}\n\n")
         f.close()
         # plot subjects inter-training results
-        #plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
-        result_collection.append(subject_history)
+        last_pretrain_avg, last_train_avg = plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=[pretrain_history])
+        print("last pretrain avg:", last_pretrain_avg)
+        print("last train avg:", last_train_avg)
+        # add history to accumulator
+        pretrain_acc.append(pretrain_history)
+        train_acc.append(subject_history)
+    
     # plot all subject's inter-training results
-    f = open(f'./{title}/results.txt', 'a')
-    f.write(f"\n\n{result_collection}")
-    f.close()
+    with open(f'./{title}/results.txt', 'a') as f:
+        f.write(f"\n\nFinal Pretrain Epoch Mean: {pretrain_acc}\n\
+                Final Train Epoch Mean: {train_acc}")
     # plot all results
-    #plot_inter_train_results(result_collection, f'./{title}/all_subjects', pretrain_res=pretrain_history)
+    plot_inter_train_results(train_acc, f'./{title}/all_subjects', pretrain_res=pretrain_acc)
