@@ -1,8 +1,4 @@
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
-from asyncio import events
-from curses.ascii import SUB
 import sys, getopt
 from unittest import result
 import matplotlib.pyplot as plt
@@ -10,16 +6,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import utils as np_utils
 import scipy.stats
-from perlin_numpy import generate_perlin_noise_3d
-from numba import cuda 
-import nvsmi
 import datetime
 import os
 import sklearn
-tf.autograph.set_verbosity(3)
-import logging
-logging.getLogger('tensorflow').disabled = True
-tf.get_logger().setLevel('INFO')
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
@@ -97,7 +86,7 @@ def pretrained_all_classes(subject, train_subjects=range(1,11)):
     # cache, shuffle, batch, prefetch
     pt_train_ds = dp.preprocessing_pipeline(pt_train_ds, batch_size=BATCH_SIZE)
     pt_val_ds = dp.preprocessing_pipeline(pt_val_ds, batch_size=BATCH_SIZE)
-
+    """
     ###### PRETRAIN MODEL
     print("Pretraining...")
     tf.debugging.set_log_device_placement(True)
@@ -124,21 +113,53 @@ def pretrained_all_classes(subject, train_subjects=range(1,11)):
     model_pretrain.save(path)
     del model_pretrain
     print("Pretraining Done")
+    """
 
-    ###### TRANSFER LEARNING
-    history_accumulator = []
+    ###### PRETRAIN AND TRANSFER LEARNING N_CHECKS TIMES
+    pretrain_history_accumulator = []
+    train_history_accumulator = []
     for n in range(N_CHECKS):
+        print(f"{n} of {N_CHECKS}!")
+        ###### PRETRAIN MODEL
+        print("Pretraining...")
+        tf.debugging.set_log_device_placement(True)
+        gpus = tf.config.list_logical_devices('GPU')
+        # tensorflows mirrored strategy adds support to do synchronous distributed
+        # training on multiple GPU's
+        mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
+        with mirrored_strategy.scope():
+            # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
+            model_pretrain = EEGNet(nb_classes=4, Chans=pretrain_data.shape[1],
+                                    Samples=pretrain_data.shape[2], dropoutRate=DROPOUT,
+                                    kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
+            # adam optimizer
+            optimizer = tf.keras.optimizers.Adam()
+        # compile model
+        model_pretrain.compile(loss='categorical_crossentropy',
+                                optimizer=optimizer,
+                                metrics=['accuracy'])
+        # fit model to pretrain data
+        pretrain_history = model_pretrain.fit(pt_train_ds, epochs=PRETRAIN_EPOCHS,
+                                            verbose=1, validation_data=pt_val_ds)
+        # append pretrain history to accumulator
+        pretrain_history_accumulator.append(pretrain_history.history)
+        # save pretrained model so it can be used for transfer learning
+        path = './models/saved_models/pretrained_model01'
+        model_pretrain.save(path)
+        del model_pretrain
+        print("Pretraining Done")
+        # TRANSFER LEARNING
         # kfold testing of transfer learning
         k_history = kfold_training(subject_data_is, subject_events_is, path, BATCH_SIZE, EPOCHS)
         # add kfold metric-history
-        history_accumulator += k_history
+        train_history_accumulator.append(k_history)
         print("\n\nN: ", n, "     ######################\n")
         print("Mean for K Folds:", np.mean([h['val_accuracy'][-1] for h in k_history]))
-        print("New Total Mean:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
+        print("New Total Mean:", np.mean([h['val_accuracy'][-1] for h in np.concatenate(train_history_accumulator)]))
     
     # save progress
     print("Parameter Test Done")
-    print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
+    print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in np.concatenate(train_history_accumulator)]))
     print("Parameters")
     print("EPOCHS:", EPOCHS)
     print("SUBJECT:", subject)
@@ -146,8 +167,8 @@ def pretrained_all_classes(subject, train_subjects=range(1,11)):
     print("KERNEL_LENGTH", KERNEL_LENGTH)
     print("N_CHECKS", N_CHECKS)
     print("BATCH SIZE", BATCH_SIZE)
-    print(history_accumulator)
-    return pretrain_history.history, history_accumulator
+    #print(history_accumulator)
+    return pretrain_history_accumulator, train_history_accumulator
 
 
 def no_pretrain_inner_speech(subject):
@@ -258,13 +279,13 @@ if __name__ == '__main__':
         #print("FREE MEMORY:", gpu1.mem_util)
         #print("USED MEMORY:", gpu1.mem_free)
         # subject final mean
-        subject_final_acc_mean = np.mean([h['val_accuracy'][-1] for h in subject_history])
-        final_acc_mean_accumulator.append(subject_final_acc_mean)
-        # write subject average accuracy to file
+        #subject_final_acc_mean = np.mean([h['val_accuracy'][-1] for h in subject_history])
+        #final_acc_mean_accumulator.append(subject_final_acc_mean)
+        # create directory if not already existing
         try:
             os.mkdir(f'./{title}')
         except:
-            pass
+            print(f"creating {title} not working")
         # write results to file
         f = open(f'./{title}/results.txt', 'a')
         f.write(f"\nSubject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {subject_final_acc_mean}\n")
@@ -273,7 +294,7 @@ if __name__ == '__main__':
         f.write(f"Pretrain History: {pretrain_history}\nSubject History: {subject_history}\n\n")
         f.close()
         # plot subjects inter-training results
-        plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
+        #plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
         result_collection.append(subject_history)
     print("TOTAL ALL SUBJECT MEAN:", np.mean(final_acc_mean_accumulator))
     # plot all subject's inter-training results
