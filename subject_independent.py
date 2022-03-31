@@ -209,6 +209,11 @@ if __name__ == '__main__':
     elif MODE == 'pretrain':
         print("PRETRAINING")
         pretrain_history, history = pretrain_non_inner_speech()
+    
+    try:
+        os.mkdir(f'./{title}')
+    except:
+        pass
     # plot all subject's inter-training results
     f = open(f'./{title}/results.txt', 'a')
     f.write(f"\n\n{history}")
