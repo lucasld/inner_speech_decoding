@@ -293,19 +293,20 @@ if __name__ == '__main__':
         except:
             print(f"creating {title} not working")
         # write results to file
-        f = open(f'./{title}/results.txt', 'a')
-        f.write(f"\nSubject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {subject_final_acc_mean}\n")
-        f.close()
-        f = open(f'./{title}/results.txt', 'a')
-        f.write(f"Pretrain History: {pretrain_history}\nSubject History: {subject_history}\n\n")
+        with open(f'./{title}/results.txt', 'a') as f:
+            f.write(f"\nSubject: {subject}\nEpochs: {EPOCHS},\
+                    Pretrain Epochs: {PRETRAIN_EPOCHS},\
+                    Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS},\
+                    Dropout: {DROPOUT}\n\
+                    Pretrain History: {pretrain_history}\n\
+                    Subject History: {subject_history}\n\n")
         f.close()
         # plot subjects inter-training results
         #plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
         result_collection.append(subject_history)
-    print("TOTAL ALL SUBJECT MEAN:", np.mean(final_acc_mean_accumulator))
     # plot all subject's inter-training results
     f = open(f'./{title}/results.txt', 'a')
     f.write(f"\n\n{result_collection}")
     f.close()
     # plot all results
-    plot_inter_train_results(result_collection, f'./{title}/all_subjects', pretrain_res=pretrain_history)
+    #plot_inter_train_results(result_collection, f'./{title}/all_subjects', pretrain_res=pretrain_history)
