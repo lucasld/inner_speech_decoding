@@ -206,6 +206,7 @@ if __name__ == '__main__':
     if MODE == 'no_pretrain':
         print("NO PRETRAINING!")
         history = no_pretrain_inner_speech()
+        pretrain_history = []
     elif MODE == 'pretrain':
         print("PRETRAINING")
         pretrain_history, history = pretrain_non_inner_speech()
@@ -213,10 +214,10 @@ if __name__ == '__main__':
     try:
         os.mkdir(f'./{title}')
     except:
-        pass
+        print(f"creating {title} not working")
     # plot all subject's inter-training results
     f = open(f'./{title}/results.txt', 'a')
     f.write(f"\n\n{history}")
     f.close()
     # plot all results
-    plot_inter_train_results(history, f'./{title}/all_subjects')
+    plot_inter_train_results(history, f'./{title}/all_subjects', pretrain_res=pretrain_history)
