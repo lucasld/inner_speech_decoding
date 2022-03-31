@@ -50,7 +50,7 @@ def pretrained_all_classes(subject, train_subjects=range(1,11)):
     tf.keras.backend.clear_session()
     print(f"TESTING SUBJECT {subject}")
     # load all subjects individually
-    subjects_data_collection = [dp.load_data(subjects=[s], filter_action=True) for s in train_subjects]
+    subjects_data_collection = [dp.load_data(subjects=[s], filter_action=True) for s in range(1,11)]
     ###### INNER SPEECH SUBJECT DATA
     # collect subject's data and events
     subject_data_is, subject_events_is = subjects_data_collection[subject - 1]
@@ -71,8 +71,8 @@ def pretrained_all_classes(subject, train_subjects=range(1,11)):
     
     ###### PRETRAIN DATA
     # collect pretrain data
-    pretrain_data = [data for i, (data, target) in enumerate(subjects_data_collection) if i != subject-1]
-    pretrain_events = [target for i, (data, target) in enumerate(subjects_data_collection) if i != subject-1]
+    pretrain_data = [subjects_data_collection[i-1][0] for i in train_subjects if i != subject]
+    pretrain_events = [subjects_data_collection[i-1][1] for i in train_subjects if i != subject]
     # append all non 'inner-speech'-conditions from subject 8
     for cond in ['pronounced speech', 'visualized condition']:
         data_sub_non_is, events_sub_non_is = dp.choose_condition(*subjects_data_collection[subject - 1], cond)
@@ -254,9 +254,9 @@ if __name__ == '__main__':
             subject_history = no_pretrain_inner_speech(subject)
 
         # check gpu storage availablity
-        gpu1 = list(nvsmi.get_gpus())[0]
-        print("FREE MEMORY:", gpu1.mem_util)
-        print("USED MEMORY:", gpu1.mem_free)
+        #gpu1 = list(nvsmi.get_gpus())[0]
+        #print("FREE MEMORY:", gpu1.mem_util)
+        #print("USED MEMORY:", gpu1.mem_free)
         # subject final mean
         subject_final_acc_mean = np.mean([h['val_accuracy'][-1] for h in subject_history])
         final_acc_mean_accumulator.append(subject_final_acc_mean)
