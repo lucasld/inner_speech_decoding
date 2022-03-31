@@ -7,7 +7,7 @@ from scipy import stats
 import utilities
 
 
-def load_data(subjects=range(1,11), channels=None, filter_action=False, path='./dataset'):
+def load_data(subjects=range(1,11), channels=None, filter_action=True, path='./dataset'):
     """Load EEG-Data and Event-Data into a numpy array.
     
     :param subjects: array of subjects from which the sessions should be
@@ -121,7 +121,7 @@ def preprocessing_pipeline(data, functions=None, args=None, batch_size=32):
     # shuffle, batch and prefetch the dataset
     data = data.shuffle(10_000)
     data = data.batch(batch_size)
-    data = data.prefetch(10)
+    data = data.prefetch(2)
     return data
 
 
