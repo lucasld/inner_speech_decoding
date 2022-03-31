@@ -237,6 +237,7 @@ if __name__ == '__main__':
             # Memory growth must be set before GPUs have been initialized
             print(e)
 
+    final_acc_mean_accumulator = []
     result_collection = []
     for subject in SUBJECT_S:
         # determine performance of a model that is pretrained on all the data
@@ -251,6 +252,9 @@ if __name__ == '__main__':
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)
         print("USED MEMORY:", gpu1.mem_free)
+        # subject final mean
+        subject_final_acc_mean = np.mean([h['val_accuracy'][-1] for h in subject_history])
+        final_acc_mean_accumulator.append(subject_final_acc_mean)
         # write subject average accuracy to file
         try:
             os.mkdir(f'./{title}')
@@ -258,7 +262,7 @@ if __name__ == '__main__':
             pass
         # write results to file
         f = open(f'./{title}/results.txt', 'a')
-        f.write(f"\nSubject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {np.mean([h['val_accuracy'][-1] for h in subject_history])}\n")
+        f.write(f"\nSubject: {subject}\nEpochs: {EPOCHS}, Pretrain Epochs: {PRETRAIN_EPOCHS}, Batch Size: {BATCH_SIZE}, N Checks: {N_CHECKS}, Dropout: {DROPOUT}\n Average Accuracy: {subject_final_acc_mean}\n")
         f.close()
         f = open(f'./{title}/results.txt', 'a')
         f.write(f"Pretrain History: {pretrain_history}\nSubject History: {subject_history}\n\n")
@@ -266,6 +270,7 @@ if __name__ == '__main__':
         # plot subjects inter-training results
         plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=pretrain_history)
         result_collection.append(subject_history)
+    print("TOTAL ALL SUBJECT MEAN:", np.mean(final_acc_mean_accumulator))
     # plot all subject's inter-training results
     f = open(f'./{title}/results.txt', 'a')
     f.write(f"\n\n{result_collection}")
