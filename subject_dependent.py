@@ -70,19 +70,18 @@ def pretrained_all_classes(subject, train_subjects=range(1,11)):
     subject_data_is = subject_data_is.reshape(*subject_data_is.shape, 1)
     
     ###### PRETRAIN DATA
-    # concatenate all other subject's data and events
-    if len(train_subjects) > 1:
-        pretrain_data = np.concatenate([data for i, (data, target) in enumerate(subjects_data_collection) if i != subject-1], axis=0)
-        pretrain_events = np.concatenate([target for i, (data, target) in enumerate(subjects_data_collection) if i != subject-1], axis=0)
-    else:
-        pretrain_data = np.array([])
-        pretrain_events = np.array([])
+    # collect pretrain data
+    pretrain_data = [data for i, (data, target) in enumerate(subjects_data_collection) if i != subject-1]
+    pretrain_events = [target for i, (data, target) in enumerate(subjects_data_collection) if i != subject-1]
     # append all non 'inner-speech'-conditions from subject 8
     for cond in ['pronounced speech', 'visualized condition']:
         data_sub_non_is, events_sub_non_is = dp.choose_condition(*subjects_data_collection[subject - 1], cond)
         # add the subjects non inner speech data to rest of the pretrain data
-        pretrain_data = np.append(pretrain_data, data_sub_non_is, axis=0)
-        pretrain_events = np.append(pretrain_events, events_sub_non_is, axis=0)
+        pretrain_data.append(data_sub_non_is)
+        pretrain_events.append(events_sub_non_is)
+    # concatenate everything
+    pretrain_data = np.concatenate(pretrain_data, axis=0)
+    pretrain_events = np.concatenate(pretrain_events, axis=0)
     # same preprocessing as for the subjects inner speech data commented above
     pretrain_data = pretrain_data.astype(np.float32)
     pretrain_events = pretrain_events[:, 1]
