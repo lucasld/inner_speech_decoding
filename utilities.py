@@ -107,6 +107,8 @@ def plot_inter_train_results(results, figure_title,
         std = np.std(np.array(collection), axis=0)
         # plot mean and standard 
         ax.errorbar(range(len(res_data)), mean, std, marker='^')
-
+        # add vertical line at last pretrain epoch
         if len(pretrain_res): ax.axvline(x=len(pretrain_res)-1)
+        # add horizontal line for last mean accuracy
+        ax.axhline(y=mean[-1])
     plt.savefig(f'{figure_title}.png')
