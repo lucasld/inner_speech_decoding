@@ -122,6 +122,8 @@ def plot_inter_train_results(results, figure_title,
         ax.errorbar(range(len(mean)), mean, std)
         # final mean accuracy
         ax.axhline(y=mean[-1])
+        # pretrain epoch limit line
+        ax.axvline(x=len(pretrain_res[i][n][key])-1)
         # add last pretrain and last training epoch to subject accumulators
         print("LAST PRETRAIN INDEX:", len(pretrain_res[i][n][key]))
         pretrain_sub_acc.append(mean[len(pretrain_res[i][n][key])])
