@@ -33,9 +33,10 @@ KERNEL_LENGTH = 64
 N_CHECKS = 20
 BATCH_SIZE = 40
 PRETRAIN_EPOCHS = -1
+MODE = 'pretrained'
 
 
-def pretrained_all_classes(subject):
+def pretrained_all_classes(subject, train_subjects=range(1,11)):
     """Determine the performance of models to predict the inner speech data of
     one subject. The models are pretrained on all subjects 3 conditions and the
     two non-inner speech conditions of the subject in question.
@@ -48,10 +49,10 @@ def pretrained_all_classes(subject):
     tf.keras.backend.clear_session()
     print(f"TESTING SUBJECT {subject}")
     # load all subjects individually
-    subjects_data_collection = [dp.load_data(subjects=[s], filter_action=True) for s in range(1,11)]
+    subjects_data_collection = [dp.load_data(subjects=[s], filter_action=True) for s in train_subjects]
     ###### INNER SPEECH SUBJECT DATA
     # collect subject's data and events
-    subject_data_is, subject_events_is = complete_dataset[subject - 1]
+    subject_data_is, subject_events_is = subjects_data_collection[subject - 1]
     # save memory by converting from 64bit to 32bit floats
     subject_data_is = subject_data_is.astype(np.float32)
     # filter out only the inner speech condition
@@ -69,11 +70,11 @@ def pretrained_all_classes(subject):
     
     ###### PRETRAIN DATA
     # concatenate all other subject's data and events
-    pretrain_data = np.concatenate([data for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
-    pretrain_events = np.concatenate([target for i, (data, target) in enumerate(complete_dataset) if i != subject-1], axis=0)
+    pretrain_data = np.concatenate([data for i, (data, target) in enumerate(subjects_data_collection) if i != subject-1], axis=0)
+    pretrain_events = np.concatenate([target for i, (data, target) in enumerate(subjects_data_collection) if i != subject-1], axis=0)
     # append all non 'inner-speech'-conditions from subject 8
     for cond in ['pronounced speech', 'visualized condition']:
-        data_sub_non_is, events_sub_non_is = dp.choose_condition(*complete_dataset[subject - 1], cond)
+        data_sub_non_is, events_sub_non_is = dp.choose_condition(*subjects_data_collection[subject - 1], cond)
         # add the subjects non inner speech data to rest of the pretrain data
         pretrain_data = np.append(pretrain_data, data_sub_non_is, axis=0)
         pretrain_events = np.append(pretrain_events, events_sub_non_is, axis=0)
@@ -145,6 +146,55 @@ def pretrained_all_classes(subject):
     return pretrain_history.history, history_accumulator
 
 
+def no_pretrain_inner_speech(subject):
+    """This function aims at training a model without pretraining by training
+    only on the inner speech condition of a sigle subject
+
+    :return: metric history for every of the n k-folds
+    :rtype: list of dictonaries
+    """
+    ###### DATA
+    data, events = dp.load_data(subjects=[subject], filter_action=True)
+    # shuffle data and labels
+    data, events = sklearn.utils.shuffle(data, events)
+    # save memory by converting from 64bit to 32bit floats
+    data = data.astype(np.float32)
+    # filter out only the inner speech condition
+    data, events = dp.choose_condition(data, events, 'inner speech')
+    # select the column containing directions (up, down, left, right)
+    events = events[:, 1]
+    # one-hot event data 
+    events = np_utils.to_categorical(events, 4)
+    # zscore normalize the data
+    data = scipy.stats.zscore(data, axis=1)
+    # reshape
+    data = data.reshape(*data.shape, 1)
+    print("Data Prepared.")
+    ###### MODEL
+    gpus = tf.config.list_logical_devices('GPU')
+    mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
+    with mirrored_strategy.scope():
+        # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
+        model = EEGNet(nb_classes=4, Chans=data.shape[1],
+                                Samples=data.shape[2], dropoutRate=DROPOUT,
+                                kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16,
+                                dropoutType='Dropout')
+        # adam optimizer
+        optimizer = tf.keras.optimizers.Adam()
+    # compile model
+    model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+    model.build(input_shape=(BATCH_SIZE, *data.shape[1:]))
+    path = './models/saved_models/no_pretrain_inner_speech'
+    model.save(path)
+    del model
+    ###### KFOLD TRAINING
+    history_accumulator = []
+    for _ in range(N_CHECKS):
+        history = kfold_training(data, events, path, BATCH_SIZE, EPOCHS)
+        history_accumulator.append(history)
+    return history_accumulator
+
+
 if __name__ == '__main__':
     # read in command line options
     opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:t:")
@@ -187,7 +237,11 @@ if __name__ == '__main__':
     for subject in SUBJECT_S:
         # determine performance of a model that is pretrained on all the data
         # except inner speech data of one subject
-        pretrain_history, subject_history = pretrained_all_classes(subject)
+        if MODE == 'pretrained':
+            pretrain_history, subject_history = pretrained_all_classes(subject)
+        elif MODE == 'no_pretrain':
+            pretrain_history = []
+            subject_history = no_pretrain_inner_speech(subject)
         # check gpu storage availablity
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)

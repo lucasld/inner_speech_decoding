@@ -39,7 +39,8 @@ PRETRAIN_EPOCHS = -1
 
 def no_pretrain_inner_speech():
     """This function aims at training a model without pretraining by training
-    on a set of conditions. As always we are only interested in inner speech predicitive performance.
+    only using the inner speech condition. As always we are only interested in
+    inner speech predicitive performance.
 
     :return: metric history for every of the n k-folds
     :rtype: list of dictonaries

@@ -123,6 +123,7 @@ def kfold_training(data, labels, model_provided, batch_size, epochs, k=4):
     # list accumulating every folds metrics 
     k_history = []
     for k_i in range(k):
+        print(f"{k_i+1} of {k} starting...")
         tf.keras.backend.clear_session()
         # concat k-1 splits
         X_train = np.concatenate([d for j, d in enumerate(X) if j != k_i])
