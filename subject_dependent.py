@@ -192,6 +192,7 @@ def no_pretrain_inner_speech(subject):
     for _ in range(N_CHECKS):
         history = kfold_training(data, events, path, BATCH_SIZE, EPOCHS)
         history_accumulator.append(history)
+    print("Subject", subject, "  Mean Accuracy:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
     return history_accumulator
 
 
@@ -199,7 +200,7 @@ if __name__ == '__main__':
     # read in command line options
     opts, _ = getopt.getopt(sys.argv[1:],"e:s:d:k:n:b:p:t:")
     now = datetime.datetime.now()
-    title =f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
+    title = f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
     for name, arg in opts:
         """ # Python 3.10
         match name:
@@ -242,6 +243,7 @@ if __name__ == '__main__':
         elif MODE == 'no_pretrain':
             pretrain_history = []
             subject_history = no_pretrain_inner_speech(subject)
+
         # check gpu storage availablity
         gpu1 = list(nvsmi.get_gpus())[0]
         print("FREE MEMORY:", gpu1.mem_util)
