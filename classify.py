@@ -1,20 +1,6 @@
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
-from asyncio import events
-from curses.ascii import SUB
-import sys, getopt
-from unittest import result
-import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import utils as np_utils
 import sklearn
-import scipy.stats
-from perlin_numpy import generate_perlin_noise_3d
-from numba import cuda 
-import nvsmi
-import datetime
 import os
 tf.autograph.set_verbosity(3)
 import logging
@@ -22,8 +8,6 @@ logging.getLogger('tensorflow').disabled = True
 tf.get_logger().setLevel('INFO')
 
 import data_preprocessing as dp
-from models.classifiers import EEGNet
-from utilities import plot_inter_train_results
 
 
 def augment_pipe(data, events, noise):
