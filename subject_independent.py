@@ -83,7 +83,7 @@ def no_pretrain_inner_speech():
     history_accumulator = []
     for _ in range(N_CHECKS):
         history = kfold_training(data, events, path, BATCH_SIZE, EPOCHS)
-        history_accumulator.append(history)
+        history_accumulator += history
     return history_accumulator
 
 
