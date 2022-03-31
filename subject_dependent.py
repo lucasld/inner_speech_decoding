@@ -58,7 +58,7 @@ def pretrained_all_classes(subject, train_subjects=range(1,11), freeze_layers=[]
     # one-hot event data 
     subject_events_is = np_utils.to_categorical(subject_events_is, 4)
     # zscore normalize the data
-    subject_data_is = scipy.stats.zscore(subject_data_is, axis=1)
+    subject_data_is = scipy.stats.zscore(subject_data_is, axis=2)
     # reshape
     subject_data_is = subject_data_is.reshape(*subject_data_is.shape, 1)
     
@@ -79,7 +79,7 @@ def pretrained_all_classes(subject, train_subjects=range(1,11), freeze_layers=[]
     pretrain_data = pretrain_data.astype(np.float32)
     pretrain_events = pretrain_events[:, 1]
     pretrain_events = np_utils.to_categorical(pretrain_events, num_classes=4)
-    pretrain_data = scipy.stats.zscore(pretrain_data, axis=1)
+    pretrain_data = scipy.stats.zscore(pretrain_data, axis=2)
     pretrain_data = pretrain_data.reshape(*pretrain_data.shape, 1)
     # create train and val tf.datasets
     options = tf.data.Options()
@@ -195,7 +195,7 @@ def no_pretrain_inner_speech(subject):
     # one-hot event data 
     events = np_utils.to_categorical(events, 4)
     # zscore normalize the data
-    data = scipy.stats.zscore(data, axis=1)
+    data = scipy.stats.zscore(data, axis=2)
     # reshape
     data = data.reshape(*data.shape, 1)
     print("Data Prepared.")
