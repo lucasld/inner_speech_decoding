@@ -244,7 +244,7 @@ if __name__ == '__main__':
         # except inner speech data of one subject
         if MODE == 'pretrained':
             print("Pretrained Model!")
-            pretrain_history, subject_history = pretrained_all_classes(subject)
+            pretrain_history, subject_history = pretrained_all_classes(subject, train_subjects=[subject])
         elif MODE == 'no_pretrain':
             print("NO Pretraining!")
             pretrain_history = []
