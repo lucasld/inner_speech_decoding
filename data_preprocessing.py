@@ -53,7 +53,8 @@ def load_data(subjects=range(1,11), channels=None, filter_action=True, path='./d
     data_collection = np.concatenate(data_collection, axis=0)
     events_collection = np.concatenate(events_collection, axis=0)
     # filter out action interval
-    if filter_action: filter_interval(data_collection, [1, 3.5], 256)
+    if filter_action:
+        data_collection = filter_interval(data_collection, [1, 3.5], 256)
     return data_collection, events_collection
 
 
