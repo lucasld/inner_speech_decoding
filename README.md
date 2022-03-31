@@ -10,7 +10,7 @@ A detailed description can be found [here](https://www.biorxiv.org/content/10.11
 #### Clone this repository
 `git clone https://github.com/lucasld/inner_speech_decoding.git`
 #### Download the dataset
-This command downloads and renames the downloaded dataset to dataset.
+This command downloads the dataset:
 `aws s3 sync --no-sign-request s3://openneuro.org/ds003626 dataset/`
 or use [these](https://openneuro.org/datasets/ds003626/versions/2.1.0/download) instructions.
 
