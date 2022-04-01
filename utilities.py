@@ -22,10 +22,6 @@ def progress_bar(proportion, size=100):
     print('\033[0m'.join(elements), end='\r')
 
 
-def plot_eeg_data(sample):
-    plt.imshow(sample)
-
-
 class TrainingGrapher:
     def __init__(self, *args, name=None, supxlabel=None, supylabel=None, axs_xlabels=None, axs_ylabels=None, x_scale=None, y_scale=None):
         self.x_scale = x_scale
@@ -79,9 +75,8 @@ class TrainingGrapher:
         plt.show()
 
 
-def plot_inter_train_results(results, figure_title,
-                              pretrain_res=None, key='val_accuracy'):
-    """Plot training progress.
+def plot_inter_train_results(results, figure_title, pretrain_res=None, key='val_accuracy'):
+    """Plot training progress of pretraining models.
     
     :param results: list of subjects inter training results
     :type results: list of lists of dicts
@@ -97,36 +92,44 @@ def plot_inter_train_results(results, figure_title,
     pretrain_sub_acc = []
     train_sub_acc = []
     # intialize subplots
-    fig, axs = plt.subplots(len(results), figsize=(15, 8*len(results)))
+    fig, axs = plt.subplots(len(results), figsize=(7.5, 15))
+    # Set the y ticks and limit
+    plt.setp(axs, yticks=[0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45], ylim=[0, 0.5])
     # enumerate through all subjects contained in the results
     for i, subject_results in enumerate(results):
         # accumulate all training historys
         history_acc = []
         ax = axs[i] if len(results) > 1 else axs
+        ax.set_title(f'Subject {i+1}')
         # iterate through all n independend "k-fold calls"
         for n in range(len(subject_results)):
             # pretrain data for one k-fold call
             pretrain_data = pretrain_res[i][n][key] if pretrain_res else []
+            if len(pretrain_data):
+                ax.plot(pretrain_data, alpha=0.08)
             # iterate through the k folds
             for k_fold in subject_results[n]:
                 # combine pretrain history with after-pretrain history
                 comp_data = pretrain_data + k_fold[key]
                 # plot line
-                ax.plot(comp_data, alpha=0.15)
+                ax.plot(range(len(pretrain_data)-1, len(comp_data)), [pretrain_data[-1]] + k_fold[key], alpha=0.4)
                 # add to accumulator
                 history_acc.append(comp_data)
         # calculate mean and standart deviation for each epoch
         mean = np.mean(history_acc, axis=0)
         std = np.std(history_acc, axis=0)
         # plot bar that shows mean results and their std
-        ax.errorbar(range(len(mean)), mean, std)
+        error_line = ax.errorbar(range(len(mean)), mean, std, color='r', elinewidth=0.6)
         # final mean accuracy
-        ax.axhline(y=mean[-1])
+        final_mean = ax.axhline(y=mean[-1], color='g')
         # pretrain epoch limit line
-        ax.axvline(x=len(pretrain_res[i][n][key])-1)
+        last_pre_epoch = ax.axvline(x=len(pretrain_res[i][n][key])-1, color='c')
         # add last pretrain and last training epoch to subject accumulators
         print("LAST PRETRAIN INDEX:", len(pretrain_res[i][n][key])-1)
         pretrain_sub_acc.append(mean[len(pretrain_res[i][n][key])-1])
         train_sub_acc.append(mean[-1])
-    plt.savefig(f'{figure_title}.png')
+        # add legend to ax if it is first
+        if i==0:
+            ax.legend([error_line, final_mean, last_pre_epoch], ["mean and standartdeviation", "final mean acc.", "last pretrain epoch"], loc='upper left')
+    plt.savefig(f'{figure_title}.png', bbox_inches='tight')
     return pretrain_sub_acc, train_sub_acc
