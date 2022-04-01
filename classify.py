@@ -1,4 +1,4 @@
-from models.classifiers import EEGNet
+from models.eegnet import EEGNet
 import data_preprocessing as dp
 import numpy as np
 import tensorflow as tf

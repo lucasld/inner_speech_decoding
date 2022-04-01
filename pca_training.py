@@ -1,6 +1,7 @@
-import PCA.pca_Methods as pm
-import PCA.pca_Models as pmod
-import PCA.pca_utilities as pu
+from models.eegnet import EEGNet
+import pca.pca_methods as pm
+import models.pca_models as pmod
+import pca.pca_utilities as pu
 import tensorflow as tf
 
 # Paramters for Pretraining and Testing
@@ -32,7 +33,7 @@ OPTIMIZER = tf.keras.optimizers.Adam(0.002)
 # Initialize Model
 
 simple = pmod.SimpleConv([64,16], DROPOUT)
-# eegNet = me.EEGNet(nb_classes=4, Chans=PCA_COMPONENTS, Samples=640, dropoutRate=0.3, kernLength=64, F1=8, D=3, F2=16,
+# eegNet = EEGNet(nb_classes=4, Chans=PCA_COMPONENTS, Samples=640, dropoutRate=0.3, kernLength=64, F1=8, D=3, F2=16,
 #                   dropoutType='Dropout')
 # reshaped = pmod.SimpleFF(input_dim=[128, 64])
 

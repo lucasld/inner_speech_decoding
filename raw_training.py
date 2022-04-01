@@ -10,7 +10,7 @@ import os
 import sklearn
 
 import data_preprocessing as dp
-from models.classifiers import EEGNet
+from models.eegnet import EEGNet
 from classify import pretrain_tester, kfold_training
 
 
