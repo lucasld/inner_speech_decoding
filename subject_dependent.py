@@ -149,6 +149,13 @@ def pretrained_all_classes(subject, train_subjects=range(1,11), freeze_layers=[]
         pretrain_history_accumulator.append(pretrain_history.history)
         # save pretrained model so it can be used for transfer learning
         path = './models/saved_models/pretrained_model01'
+        print("FREEZE?")
+        for freeze_index in freeze_layers:
+            # function to get trainable parameters
+            trainable_params = lambda: np.sum([np.prod(v.get_shape()) for v in model_pretrain.trainable_weights])
+            print("trainable parameters before freezing:", trainable_params())
+            model_pretrain.layers[freeze_index].trainable = False
+            print("after:", trainable_params())
         model_pretrain.save(path)
         del model_pretrain
         print("Pretraining Done")
