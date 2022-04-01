@@ -21,7 +21,7 @@ FOLDS = 10
 TRAINING = True
 PRETRAINED = False
 INDIV_SUBJECTS = True
-path = "test_models/SimpleConv_e50_bs15_vacc24"
+path = "PCA/pretraining_models/SimpleConv_e50_bs15_vacc24"
 
 # Model Parameters
 DROPOUT = 0.3  # Conv # 0.4 # EEg
