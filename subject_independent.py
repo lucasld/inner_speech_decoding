@@ -12,7 +12,6 @@ from classify import pretrain_tester
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
-from utilities import plot_inter_train_results
 from classify import kfold_training
 
 # Hyperparameters
@@ -189,9 +188,6 @@ if __name__ == '__main__':
         os.mkdir(f'./{title}')
     except:
         print(f"creating {title} not working")
-    # plot all subject's inter-training results
     f = open(f'./{title}/results.txt', 'a')
     f.write(f"\n\n{history}")
     f.close()
-    # plot all results
-    plot_inter_train_results(history, f'./{title}/all_subjects', pretrain_res=pretrain_history)
