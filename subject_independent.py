@@ -1,26 +1,14 @@
 
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
-from asyncio import events
-from curses.ascii import SUB
 import sys, getopt
-from unittest import result
-import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import utils as np_utils
 import sklearn
 import scipy.stats
-from perlin_numpy import generate_perlin_noise_3d
-from numba import cuda 
-import nvsmi
 import datetime
 import os
-tf.autograph.set_verbosity(3)
-import logging
-logging.getLogger('tensorflow').disabled = True
-tf.get_logger().setLevel('INFO')
+from classify import pretrain_tester
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
@@ -35,6 +23,7 @@ KERNEL_LENGTH = 64
 N_CHECKS = 20
 BATCH_SIZE = 40
 PRETRAIN_EPOCHS = -1
+FREEZE_LAYERS = []
 
 
 def no_pretrain_inner_speech():
@@ -58,7 +47,7 @@ def no_pretrain_inner_speech():
     # one-hot event data 
     events = np_utils.to_categorical(events, 4)
     # zscore normalize the data
-    data = scipy.stats.zscore(data, axis=1)
+    data = scipy.stats.zscore(data, axis=2)
     # reshape
     data = data.reshape(*data.shape, 1)
     print("Data Prepared.")
@@ -101,6 +90,8 @@ def pretrain_non_inner_speech():
     data, events = sklearn.utils.shuffle(data, events)
      # save memory by converting from 64bit to 32bit floats
     data = data.astype(np.float32)
+    # zscore normalize the data
+    data = scipy.stats.zscore(data, axis=2)
     # reshape
     data = data.reshape(*data.shape, 1)
     # pretrain data
@@ -112,68 +103,45 @@ def pretrain_non_inner_speech():
     events_pretrain = events_pretrain[:, 1]
     # one-hot event data 
     events_pretrain = np_utils.to_categorical(events_pretrain, 4)
-    # zscore normalize the data
-    data_pretrain = scipy.stats.zscore(data_pretrain, axis=1)
     # inner speech data
     data_inner_speech, events_inner_speech = dp.choose_condition(data, events, 'inner speech')
+    # select the column containing directions (up, down, left, right)
+    events_inner_speech = events_inner_speech[:, 1]
+    # one-hot event data 
+    events_inner_speech = np_utils.to_categorical(events_inner_speech, 4)
+    # inner speech data
     # convert to tf.Dataset
-    dataset_pretrain = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain))
-    dataset_inner_speech = tf.data.Dataset.from_tensor_slices((data_inner_speech, events_inner_speech))
+    #create train and val tf.datasets
+    options = tf.data.Options()
+    dataset_pretrain = tf.data.Dataset.from_tensor_slices((data_pretrain, events_pretrain)).with_options(options)
+    dataset_pretrain_validation = tf.data.Dataset.from_tensor_slices((data_inner_speech, events_inner_speech)).with_options(options)
+    # cache, shuffle, batch, prefetch
+    dataset_pretrain = dp.preprocessing_pipeline(dataset_pretrain, batch_size=BATCH_SIZE)
+    dataset_pretrain_validation = dp.preprocessing_pipeline(dataset_pretrain_validation, batch_size=BATCH_SIZE)
 
-    ###### PRETRAINING
-    print("Pretraining...")
-    tf.debugging.set_log_device_placement(True)
-    gpus = tf.config.list_logical_devices('GPU')
-    # tensorflows mirrored strategy adds support to do synchronous distributed
-    # training on multiple GPU's
-    mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
-    with mirrored_strategy.scope():
-        # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
-        model_pretrain = EEGNet(nb_classes=4, Chans=data.shape[1],
-                                Samples=data.shape[2], dropoutRate=DROPOUT,
-                                kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
-        # adam optimizer
-        optimizer = tf.keras.optimizers.Adam()
-    # compile model
-    model_pretrain.compile(loss='categorical_crossentropy',
-                            optimizer=optimizer,
-                            metrics=['accuracy'])
-    # fit model to pretrain data
-    pretrain_history = model_pretrain.fit(data_pretrain, epochs=PRETRAIN_EPOCHS,
-                                          verbose=1, validation_data=dataset_inner_speech)
-    # save pretrained model so it can be used for transfer learning
-    path = './models/saved_models/pretrained_subject_independent'
-    model_pretrain.save(path)
-    del model_pretrain
-    print("Pretraining Done")
 
-    ###### TRANSFER LEARNING
-    history_accumulator = []
-    for n in range(N_CHECKS):
-        # kfold testing of transfer learning
-        k_history = kfold_training(data_inner_speech, events_inner_speech, BATCH_SIZE, EPOCHS, path)
-        # add kfold metric-history
-        history_accumulator += k_history
-        print("\n\nN: ", n, "     ######################\n")
-        print("Mean for K Folds:", np.mean([h['val_accuracy'][-1] for h in k_history]))
-        print("New Total Mean:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
-    
+    # k-fold test EEGNet on provided data, repeat N_CHECK times
+    pretrain_history, train_history = pretrain_tester(
+        dataset_pretrain, dataset_pretrain_validation, data_inner_speech, events_inner_speech,
+        N_CHECKS, PRETRAIN_EPOCHS, EPOCHS, BATCH_SIZE, FREEZE_LAYERS,
+        DROPOUT, KERNEL_LENGTH
+    )
     # save progress
     print("Parameter Test Done")
-    print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in history_accumulator]))
+    print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in np.concatenate(train_history)]))
     print("Parameters")
     print("EPOCHS:", EPOCHS)
     print("DROPOUT", DROPOUT)
     print("KERNEL_LENGTH", KERNEL_LENGTH)
     print("N_CHECKS", N_CHECKS)
     print("BATCH SIZE", BATCH_SIZE)
-    print(history_accumulator)
-    return pretrain_history.history, history_accumulator
+    #print(history_accumulator)
+    return pretrain_history, train_history
 
 
 if __name__ == '__main__':
     # read in command line options
-    opts, _ = getopt.getopt(sys.argv[1:],"e:m:d:k:n:b:p:t:")
+    opts, _ = getopt.getopt(sys.argv[1:],"e:m:d:k:n:b:p:t:f:")
     now = datetime.datetime.now()
     title =f"{now.strftime('%A')}_{now.hour}_{str(now.minute).zfill(2)}"
     for name, arg in opts:
@@ -195,6 +163,7 @@ if __name__ == '__main__':
         if name == '-b': BATCH_SIZE = int(arg)
         if name == '-p': PRETRAIN_EPOCHS = int(arg)
         if name == '-t': title = arg
+        if name == '-f': FREEZE_LAYERS = list(map(int, arg.split(',')))
     # if pretrain epochs where not specified, pretrain epochs equal epochs
     if PRETRAIN_EPOCHS < 0: PRETRAIN_EPOCHS = EPOCHS
     gpus = tf.config.list_physical_devices('GPU')
@@ -215,7 +184,7 @@ if __name__ == '__main__':
     elif MODE == 'pretrain':
         print("PRETRAINING")
         pretrain_history, history = pretrain_non_inner_speech()
-    
+    # create directory if not already existing
     try:
         os.mkdir(f'./{title}')
     except:

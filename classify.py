@@ -1,13 +1,8 @@
+from models.classifiers import EEGNet
+import data_preprocessing as dp
 import numpy as np
 import tensorflow as tf
 import sklearn
-import os
-tf.autograph.set_verbosity(3)
-import logging
-logging.getLogger('tensorflow').disabled = True
-tf.get_logger().setLevel('INFO')
-
-import data_preprocessing as dp
 
 
 def augment_pipe(data, events, noise):
@@ -26,55 +21,6 @@ def augment_pipe(data, events, noise):
     
     return aug_data, events
 
-"""
-def kfold_training(data, labels, k=4):
-    data, labels = sklearn.utils.shuffle(data, labels)
-    # create k data and label splits
-    X = []
-    Y = []
-    # create perlin noise
-    noise = generate_perlin_noise_3d(
-        (data.shape[0], 128, 1200), (5, 4, 4), tileable=(True, False, False) #4, 4
-    )
-    # shuffle noise
-    noise = np.random.default_rng().permutation(noise)[:, :, :data.shape[2]]
-
-    for i in range(k):
-        n, _, _ = data.shape
-        X.append(data[int(n/k * i):int(n/k * i + n/k)])
-        Y.append(labels[int(n/k * i):int(n/k * i + n/k)])
-    
-    kfold_acc = []
-    for k_i in range(k):
-        # concat k-1 splits
-        X_train = np.concatenate([d for j, d in enumerate(X) if j != i])
-        Y_train = np.concatenate([d for j, d in enumerate(Y) if j != i])
-        X_test = X[i]
-        Y_test = Y[i]
-        kernels, chans, samples = 1, data.shape[1], data.shape[2]
-        # reshape
-        X_train = X_train.reshape(X_train.shape[0], chans, samples, kernels)
-        X_test = X_test.reshape(X_test.shape[0], chans, samples, kernels)
-        model = EEGNet(nb_classes = 4, Chans = chans, Samples = samples, 
-                dropoutRate = DROPOUT, kernLength = KERNEL_LENGTH, F1 = 8, D = 2, F2 = 16, 
-                dropoutType = 'Dropout')
-        # compile the model and set the optimizers
-        model.compile(loss='categorical_crossentropy', optimizer='adam', 
-                    metrics = ['accuracy'])
-        class_weights = {0:1, 1:1, 2:1, 3:1}
-        # train, in each epoch train data is augmented
-        for _ in range(EPOCHS):
-            X_aug, Y_aug = augment_pipe(X_train, Y_train, noise)
-            model.fit(X_aug, Y_aug, batch_size = BATCH_SIZE, epochs = 1, 
-                      verbose = 1, validation_data=(X_test, Y_test), class_weight = class_weights)
-        # test trained model
-        probs = model.predict(X_test)
-        preds = probs.argmax(axis = -1)  
-        acc = np.mean(preds == Y_test.argmax(axis=-1))
-        print("Classification accuracy: %f " % (acc))
-        kfold_acc.append(acc)
-    return kfold_acc
-"""
 
 def kfold_training(data, labels, model_provided, batch_size, epochs, k=4):
     """K-Fold train and test a model on data and labels.
@@ -135,3 +81,57 @@ def kfold_training(data, labels, model_provided, batch_size, epochs, k=4):
         # add metric history to accumulator
         k_history.append(hist.history)
     return k_history
+
+
+def pretrain_tester(pretrain_dataset, pretrain_val_dataset,
+                   train_data, train_events, n_checks, pretrain_epochs, epochs,
+                   batch_size, freeze_layers, dropout, kernel_length):
+    ###### PRETRAIN AND TRANSFER LEARNING N_CHECKS TIMES
+    pretrain_history_accumulator = []
+    train_history_accumulator = []
+    for n in range(n_checks):
+        print(f"{n} of {n_checks}!")
+        ###### PRETRAIN MODEL
+        print("Pretraining...")
+        tf.debugging.set_log_device_placement(True)
+        gpus = tf.config.list_logical_devices('GPU')
+        # tensorflows mirrored strategy adds support to do synchronous distributed
+        # training on multiple GPU's
+        mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
+        with mirrored_strategy.scope():
+            # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
+            model_pretrain = EEGNet(nb_classes=4, Chans=train_data.shape[1],
+                                    Samples=train_data.shape[2], dropoutRate=dropout,
+                                    kernLength=kernel_length, F1=8, D=2, F2=16, dropoutType='Dropout')
+            # adam optimizer
+            optimizer = tf.keras.optimizers.Adam()
+        # compile model
+        model_pretrain.compile(loss='categorical_crossentropy',
+                                optimizer=optimizer,
+                                metrics=['accuracy'])
+        # fit model to pretrain data
+        pretrain_history = model_pretrain.fit(pretrain_dataset, epochs=pretrain_epochs,
+                                            verbose=1, validation_data=pretrain_val_dataset)
+        # append pretrain history to accumulator
+        pretrain_history_accumulator.append(pretrain_history.history)
+        # save pretrained model so it can be used for transfer learning
+        path = './models/saved_models/pretrained_model01'
+        print("FREEZE?")
+        for freeze_index in freeze_layers:
+            # function to get trainable parameters
+            trainable_params = lambda: np.sum([np.prod(v.get_shape()) for v in model_pretrain.trainable_weights])
+            print("trainable parameters before freezing:", trainable_params())
+            model_pretrain.layers[freeze_index].trainable = False
+            print("after:", trainable_params())
+        model_pretrain.save(path)
+        del model_pretrain
+        print("Pretraining Done")
+        # TRANSFER LEARNING
+        # kfold testing of transfer learning
+        k_history = kfold_training(train_data, train_events, path, batch_size, epochs)
+        # add kfold metric-history
+        train_history_accumulator.append(k_history)
+        print("\n\nN: ", n, "     ######################\n")
+        print("Mean for K Folds:", np.mean([h['val_accuracy'][-1] for h in k_history]))
+        print("New Total Mean:", np.mean([h['val_accuracy'][-1] for h in np.concatenate(train_history_accumulator)]))
+    return pretrain_history_accumulator, train_history_accumulator

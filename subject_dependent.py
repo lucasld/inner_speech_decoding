@@ -1,6 +1,5 @@
 import os
 import sys, getopt
-from unittest import result
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -8,12 +7,11 @@ from tensorflow.keras import utils as np_utils
 import scipy.stats
 import datetime
 import os
-import sklearn
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
 from utilities import plot_inter_train_results
-from classify import kfold_training
+from classify import pretrain_tester
 
 # Hyperparameters
 EPOCHS = 10
@@ -27,7 +25,7 @@ MODE = 'pretrained'
 FREEZE_LAYERS = []
 
 
-def pretrained_all_classes(subject, train_subjects=range(1,11), freeze_layers=[]):
+def pretrained_all_classes(subject, train_subjects=range(1,11)):
     """Determine the performance of models to predict the inner speech data of
     one subject. The models are pretrained on all subjects 3 conditions and the
     two non-inner speech conditions of the subject in question.
@@ -90,87 +88,15 @@ def pretrained_all_classes(subject, train_subjects=range(1,11), freeze_layers=[]
     # cache, shuffle, batch, prefetch
     pt_train_ds = dp.preprocessing_pipeline(pt_train_ds, batch_size=BATCH_SIZE)
     pt_val_ds = dp.preprocessing_pipeline(pt_val_ds, batch_size=BATCH_SIZE)
-    """
-    ###### PRETRAIN MODEL
-    print("Pretraining...")
-    tf.debugging.set_log_device_placement(True)
-    gpus = tf.config.list_logical_devices('GPU')
-    # tensorflows mirrored strategy adds support to do synchronous distributed
-    # training on multiple GPU's
-    mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
-    with mirrored_strategy.scope():
-        # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
-        model_pretrain = EEGNet(nb_classes=4, Chans=pretrain_data.shape[1],
-                                Samples=pretrain_data.shape[2], dropoutRate=DROPOUT,
-                                kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
-        # adam optimizer
-        optimizer = tf.keras.optimizers.Adam()
-    # compile model
-    model_pretrain.compile(loss='categorical_crossentropy',
-                            optimizer=optimizer,
-                            metrics=['accuracy'])
-    # fit model to pretrain data
-    pretrain_history = model_pretrain.fit(pt_train_ds, epochs=PRETRAIN_EPOCHS,
-                                          verbose=1, validation_data=pt_val_ds)
-    # save pretrained model so it can be used for transfer learning
-    path = './models/saved_models/pretrained_model01'
-    model_pretrain.save(path)
-    del model_pretrain
-    print("Pretraining Done")
-    """
-
-    ###### PRETRAIN AND TRANSFER LEARNING N_CHECKS TIMES
-    pretrain_history_accumulator = []
-    train_history_accumulator = []
-    for n in range(N_CHECKS):
-        print(f"{n} of {N_CHECKS}!")
-        ###### PRETRAIN MODEL
-        print("Pretraining...")
-        tf.debugging.set_log_device_placement(True)
-        gpus = tf.config.list_logical_devices('GPU')
-        # tensorflows mirrored strategy adds support to do synchronous distributed
-        # training on multiple GPU's
-        mirrored_strategy = tf.distribute.MirroredStrategy(gpus)
-        with mirrored_strategy.scope():
-            # create EEGNet (source: https://github.com/vlawhern/arl-eegmodels)
-            model_pretrain = EEGNet(nb_classes=4, Chans=pretrain_data.shape[1],
-                                    Samples=pretrain_data.shape[2], dropoutRate=DROPOUT,
-                                    kernLength=KERNEL_LENGTH, F1=8, D=2, F2=16, dropoutType='Dropout')
-            # adam optimizer
-            optimizer = tf.keras.optimizers.Adam()
-        # compile model
-        model_pretrain.compile(loss='categorical_crossentropy',
-                                optimizer=optimizer,
-                                metrics=['accuracy'])
-        # fit model to pretrain data
-        pretrain_history = model_pretrain.fit(pt_train_ds, epochs=PRETRAIN_EPOCHS,
-                                            verbose=1, validation_data=pt_val_ds)
-        # append pretrain history to accumulator
-        pretrain_history_accumulator.append(pretrain_history.history)
-        # save pretrained model so it can be used for transfer learning
-        path = './models/saved_models/pretrained_model01'
-        print("FREEZE?")
-        for freeze_index in freeze_layers:
-            # function to get trainable parameters
-            trainable_params = lambda: np.sum([np.prod(v.get_shape()) for v in model_pretrain.trainable_weights])
-            print("trainable parameters before freezing:", trainable_params())
-            model_pretrain.layers[freeze_index].trainable = False
-            print("after:", trainable_params())
-        model_pretrain.save(path)
-        del model_pretrain
-        print("Pretraining Done")
-        # TRANSFER LEARNING
-        # kfold testing of transfer learning
-        k_history = kfold_training(subject_data_is, subject_events_is, path, BATCH_SIZE, EPOCHS)
-        # add kfold metric-history
-        train_history_accumulator.append(k_history)
-        print("\n\nN: ", n, "     ######################\n")
-        print("Mean for K Folds:", np.mean([h['val_accuracy'][-1] for h in k_history]))
-        print("New Total Mean:", np.mean([h['val_accuracy'][-1] for h in np.concatenate(train_history_accumulator)]))
-    
+    # k-fold test EEGNet on provided data, repeat N_CHECK times
+    pretrain_history, train_history = pretrain_tester(
+        pt_train_ds, pt_val_ds, subject_data_is, subject_events_is,
+        N_CHECKS, PRETRAIN_EPOCHS, EPOCHS, BATCH_SIZE, FREEZE_LAYERS,
+        DROPOUT, KERNEL_LENGTH
+    )
     # save progress
     print("Parameter Test Done")
-    print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in np.concatenate(train_history_accumulator)]))
+    print("Average Accuracy:", np.mean([h['val_accuracy'][-1] for h in np.concatenate(train_history)]))
     print("Parameters")
     print("EPOCHS:", EPOCHS)
     print("SUBJECT:", subject)
@@ -179,7 +105,7 @@ def pretrained_all_classes(subject, train_subjects=range(1,11), freeze_layers=[]
     print("N_CHECKS", N_CHECKS)
     print("BATCH SIZE", BATCH_SIZE)
     #print(history_accumulator)
-    return pretrain_history_accumulator, train_history_accumulator
+    return pretrain_history, train_history
 
 
 def no_pretrain_inner_speech(subject):
@@ -281,8 +207,7 @@ if __name__ == '__main__':
         # except inner speech data of one subject
         if MODE == 'pretrained':
             print("Pretrained Model!")
-            pretrain_history, subject_history = pretrained_all_classes(
-                subject, train_subjects=[subject], freeze_layers=FREEZE_LAYERS)
+            pretrain_history, subject_history = pretrained_all_classes(subject, train_subjects=[subject])
         elif MODE == 'no_pretrain':
             print("NO Pretraining!")
             pretrain_history = []
