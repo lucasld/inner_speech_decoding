@@ -126,7 +126,7 @@ def no_pretrain_inner_speech(subject):
     data, events = dp.choose_condition(data, events, 'inner speech')
     # select the column containing directions (up, down, left, right)
     events = events[:, 1]
-    # one-hot event data 
+    # one-hot event data
     events = np_utils.to_categorical(events, 4)
     # zscore normalize the data
     data = scipy.stats.zscore(data, axis=2)

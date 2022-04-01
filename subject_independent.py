@@ -106,7 +106,7 @@ def pretrain_non_inner_speech():
     data_inner_speech, events_inner_speech = dp.choose_condition(data, events, 'inner speech')
     # select the column containing directions (up, down, left, right)
     events_inner_speech = events_inner_speech[:, 1]
-    # one-hot event data 
+    # one-hot event data
     events_inner_speech = np_utils.to_categorical(events_inner_speech, 4)
     # inner speech data
     # convert to tf.Dataset

@@ -86,6 +86,11 @@ def kfold_training(data, labels, model_provided, batch_size, epochs, k=4):
 def pretrain_tester(pretrain_dataset, pretrain_val_dataset,
                    train_data, train_events, n_checks, pretrain_epochs, epochs,
                    batch_size, freeze_layers, dropout, kernel_length):
+    """Pretrain and 'post-pre-train' a model.
+
+    :param pretrain_dataset: dataset to pretrain the model with
+    :type pretrain_dataset: tf.data.Dataset
+    """
     ###### PRETRAIN AND TRANSFER LEARNING N_CHECKS TIMES
     pretrain_history_accumulator = []
     train_history_accumulator = []
