@@ -125,7 +125,7 @@ def no_pretrain_inner_speech(subject):
     data, events = dp.choose_condition(data, events, 'inner speech')
     # select the column containing directions (up, down, left, right)
     events = events[:, 1]
-    # one-hot event data 
+    # one-hot event data
     events = np_utils.to_categorical(events, 4)
     # zscore normalize the data
     data = scipy.stats.zscore(data, axis=2)
@@ -241,7 +241,7 @@ if __name__ == '__main__':
         # add history to accumulator
         pretrain_acc.append(pretrain_history)
         train_acc.append(subject_history)
-    
+
     # plot all subject's inter-training results
     with open(f'./{title}/results.txt', 'a') as f:
         f.write(f"\n\nFinal Pretrain Epoch Mean: {pretrain_acc}\n\

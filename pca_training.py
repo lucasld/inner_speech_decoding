@@ -1,70 +1,120 @@
 import PCA.pca_Methods as pm
 import PCA.pca_Models as pmod
-import models.EEGNet as me
 import PCA.pca_utilities as pu
-import numpy as np
 import tensorflow as tf
-from ResNet import ResNet
+
+# Paramters for Pretraining and Testing
+PCA_TYPE = 2  # 1
+PCA_COMPONENTS = 46  # 1319
+PCA_CONDITION = 0
+
+# Parameters for Pretraining
+TRAIN_SIZE = 0.75
+BATCH_SIZE = 15
+EPOCHS = 50
+PRETRAINING = False
+
+# Parameters for Testing
+BATCH_SIZE_TRAIN = 10
+EPOCHS_TRAIN = 30
+FOLDS = 10
+TRAINING = True
+PRETRAINED = False
+INDIV_SUBJECTS = True
+path = "test_models/SimpleConv_e50_bs15_vacc24"
+
+# Model Parameters
+DROPOUT = 0.3  # Conv # 0.4 # EEg
+MODEL_NAME = 'SimpleConv_Random'  # SmallConv1_i6' # 'EEGNet1_D08_Kl3'
+LOSS = tf.keras.losses.CategoricalCrossentropy()
+OPTIMIZER = tf.keras.optimizers.Adam(0.002)
+
+# Initialize Model
+
+simple = pmod.SimpleConv([16,8], DROPOUT) # [64,16]
+# eegNet = me.EEGNet(nb_classes=4, Chans=PCA_COMPONENTS, Samples=640, dropoutRate=0.3, kernLength=64, F1=8, D=3, F2=16,
+#                   dropoutType='Dropout')
+# reshaped = pmod.SimpleFF(input_dim=[128, 64])
+
+model = simple
+
+print('--- Model Summary ---')
+#model.build(input_shape=(None, PCA_COMPONENTS, 640, 1))
+# model.build((None, PCA_COMPONENTS))
+#model.summary()
 
 print('--- Load data ---')
+tf.keras.backend.clear_session()
+pretraining, training = pm.load_data(subjects=range(1, 11))
 
-pretraining, training = pm.load_data(subjects=range(1,2))
+if PRETRAINING:
+    print('--- Pretraining ---')
+    tf.keras.backend.clear_session()
+    pre_hist, pre_eval, path = pm.pretraining(data=pretraining,
+                                              model=model, loss=LOSS, optimizer=OPTIMIZER,
+                                              batch_size=BATCH_SIZE, epochs=EPOCHS,
+                                              train_size=TRAIN_SIZE,
+                                              save=True, model_name=MODEL_NAME, filename=f'{MODEL_NAME}_pretrain',
+                                              pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS,
+                                              pca_condition=PCA_CONDITION)
+    pu.k_fold_visualization(pre_hist, pre_eval, batch_size=BATCH_SIZE, epochs=EPOCHS, save=True,
+                            name=f"{MODEL_NAME}", folder="figures/Pretraining")
+    print('--- Pretraining done ---')
 
-PCA_TYPE = 2
-PCA_COMPONENTS = 46
-PCA_CONDITION = 0
+if TRAINING:
+    print('--- Start k-fold Cross Validation ---')
+    tf.keras.backend.clear_session()
+    if PRETRAINED:
+        model = tf.keras.models.load_model(path)
+        model.build(input_shape=(None, PCA_COMPONENTS, 640, 1))
+        model.summary()
+    else:
+        model = model
 
-TRAIN_SIZE = 0.75
-TEST_SIZE = 0.25
+    if PCA_TYPE == 1:
+        hist, ev, _, _ = pm.ff_training(data=training,
+                                        model=model, loss=LOSS, optimizer=OPTIMIZER,
+                                        batch_size=BATCH_SIZE, epochs=EPOCHS_TRAIN,
+                                        save=False, model_name=f'{MODEL_NAME}', filename=f'{MODEL_NAME}_Training',
+                                        pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS,
+                                        pca_condition=PCA_CONDITION)
+    else:
+        hist, ev, _, _ = pm.k_fold_training(data=training,
+                                            model=model, loss=LOSS, optimizer=OPTIMIZER,
+                                            batch_size=BATCH_SIZE, epochs=EPOCHS_TRAIN,
+                                            save=False, model_name=f'{MODEL_NAME}', filename=f'{MODEL_NAME}_Training',
+                                            pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS,
+                                            pca_condition=PCA_CONDITION)
+    pu.k_fold_visualization(hist, ev, batch_size=BATCH_SIZE, epochs=EPOCHS, save=True,
+                            name=f"{MODEL_NAME}")
+    print('--- k-fold Cross Validation done ---')
 
-DROPOUT = 0.4
-BATCHSIZE = 15
-EPOCHS = 1
-
-# Initialize the loss-function
-loss = tf.keras.losses.CategoricalCrossentropy()
-# Initialize the optimizer
-optimizer = tf.keras.optimizers.Adam(0.001)
-# Initialize Model
-model = pmod.DenseConv() # ResNet(num_resBlock=[[8, 16], [16, 32]])
-# Build model to output it's summary
-
-#model = pmod.SmallConv(6, DROPOUT)
-
-MODELNAME = 'Test' # SmallConv1_i6' # 'EEGNet1_D08_Kl3'
-
-print('--- Pretraining ---')
-
-#model = me.EEGNet(nb_classes=4, Chans=PCA_COMPONENTS, Samples=640, dropoutRate=0.3, kernLength=128, F1=8, D=3, F2=16,
- #                 dropoutType='Dropout')
-
-pre_hist, pre_eval, _, path = pm.pretraining(data=pretraining,
-                                             model=model, loss=loss, optimizer=optimizer,
-                                             batch_size=BATCHSIZE, epochs=EPOCHS,
-                                             train_size=TRAIN_SIZE, test_size=TEST_SIZE,
-                                             save=True, model_name=MODELNAME, filename=f'{MODELNAME}_pretrain',
-                                             pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS,
-                                             pca_condition=PCA_CONDITION)
-pu.k_fold_visualization(pre_hist, pre_eval, epochs=EPOCHS, batch_size=BATCHSIZE, save=True,
-                        name=f"{MODELNAME}", folder="figures/Pretraining")
-
-print('--- Pretraining done ---')
-
-print('--- Start k-fold Cross Validation ---')
-
-PCA_TYPE = 2
-PCA_COMPONENTS = 46
-PCA_CONDITION = 0
-BATCHSIZE = 10
-EPOCHS = 1
-FOLDS = 2
-#path = 'test_models/Pretraining/SmallConv1_i10_e15_bs15_vacc26_vstd0'
-
-hist, ev, cvs, _ = pm.k_fold_training(data=training,
-                                      model=model, loss=loss, optimizer=optimizer,
-                                      batch_size=BATCHSIZE, epochs=EPOCHS, folds=FOLDS,
-                                      save=False, model_name=f'{MODELNAME}', filename=f'{MODELNAME}_Training',
-                                      pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS, pca_condition=PCA_CONDITION)
-pu.k_fold_visualization(hist, ev, epochs=EPOCHS, batch_size=BATCHSIZE, save=True,
-                        name=f"{MODELNAME}")
-print('--- k-fold Cross Validation done ---')
+if INDIV_SUBJECTS:
+    tf.keras.backend.clear_session()
+    if PRETRAINED:
+        model = tf.keras.models.load_model(path)
+    else:
+        model = model
+    print('--- Start k-fold Cross Validation for each subject ---')
+    for subj in range(1, 11):
+        _, training = pm.load_data(subjects=[subj])
+        print('Train Model on subj ', str(subj))
+        if PCA_TYPE == 1:
+            hist, ev, _, _ = pm.ff_training(data=training,
+                                            model=model, loss=LOSS, optimizer=OPTIMIZER,
+                                            batch_size=BATCH_SIZE, epochs=EPOCHS_TRAIN, folds=FOLDS,
+                                            save=False, model_name=f'{MODEL_NAME}',
+                                            filename=f'{MODEL_NAME}_Subject{subj}_Training',
+                                            pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS,
+                                            pca_condition=PCA_CONDITION)
+        else:
+            hist, ev, _, _ = pm.k_fold_training(data=training,
+                                                model=model, loss=LOSS, optimizer=OPTIMIZER,
+                                                batch_size=BATCH_SIZE, epochs=EPOCHS_TRAIN, folds=FOLDS,
+                                                save=False, model_name=f'{MODEL_NAME}',
+                                                filename=f'{MODEL_NAME}_Subject{subj}_Training',
+                                                pca_type=PCA_TYPE, pca_components=PCA_COMPONENTS,
+                                                pca_condition=PCA_CONDITION)
+        pu.k_fold_visualization(hist, ev, batch_size=BATCH_SIZE, epochs=EPOCHS, save=True,
+                                name=f"{MODEL_NAME}_Subject{subj}")
+    print('--- k-fold Cross Validation for each subject done ---')
