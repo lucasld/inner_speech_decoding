@@ -7,11 +7,12 @@ from tensorflow.keras import utils as np_utils
 import scipy.stats
 import datetime
 import os
+import sklearn
 
 import data_preprocessing as dp
 from models.classifiers import EEGNet
-from utilities import plot_inter_train_results
-from classify import pretrain_tester
+from classify import pretrain_tester, kfold_training
+
 
 # Hyperparameters
 EPOCHS = 10
@@ -212,14 +213,6 @@ if __name__ == '__main__':
             print("NO Pretraining!")
             pretrain_history = []
             subject_history = no_pretrain_inner_speech(subject)
-
-        # check gpu storage availablity
-        #gpu1 = list(nvsmi.get_gpus())[0]
-        #print("FREE MEMORY:", gpu1.mem_util)
-        #print("USED MEMORY:", gpu1.mem_free)
-        # subject final mean
-        #subject_final_acc_mean = np.mean([h['val_accuracy'][-1] for h in subject_history])
-        #final_acc_mean_accumulator.append(subject_final_acc_mean)
         # create directory if not already existing
         try:
             os.mkdir(f'./{title}')
@@ -234,17 +227,8 @@ if __name__ == '__main__':
                     Pretrain History: {pretrain_history}\n\
                     Subject History: {subject_history}\n\n")
         f.close()
-        # plot subjects inter-training results
-        last_pretrain_avg, last_train_avg = plot_inter_train_results([subject_history], f'./{title}/subject_{subject}', pretrain_res=[pretrain_history])
         print("last pretrain avg:", last_pretrain_avg)
         print("last train avg:", last_train_avg)
         # add history to accumulator
         pretrain_acc.append(pretrain_history)
         train_acc.append(subject_history)
-    
-    # plot all subject's inter-training results
-    with open(f'./{title}/results.txt', 'a') as f:
-        f.write(f"\n\nFinal Pretrain Epoch Mean: {pretrain_acc}\n\
-                Final Train Epoch Mean: {train_acc}")
-    # plot all results
-    plot_inter_train_results(train_acc, f'./{title}/all_subjects', pretrain_res=pretrain_acc)
