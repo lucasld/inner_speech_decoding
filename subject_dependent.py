@@ -227,8 +227,6 @@ if __name__ == '__main__':
                     Pretrain History: {pretrain_history}\n\
                     Subject History: {subject_history}\n\n")
         f.close()
-        print("last pretrain avg:", last_pretrain_avg)
-        print("last train avg:", last_train_avg)
         # add history to accumulator
         pretrain_acc.append(pretrain_history)
         train_acc.append(subject_history)
