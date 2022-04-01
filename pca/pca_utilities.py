@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow_datasets as tfds
 
 """ Methods for Plotting data 
-        3 Methods to visualize application and inverse application of PCA
+        3 Methods to visualize application and inverse application of pca
             1) side_by_side: shows the data before dimension reduction and the data after the 
                 dimension reduction is inverse
             2) pca_visual: visualizes the dimension reduced data
@@ -19,7 +19,7 @@ import tensorflow_datasets as tfds
 
 
 def side_by_side(original, reconstructed, indexes):
-    """Plot original data and from PCA reconstructed data side by side.
+    """Plot original data and from pca reconstructed data side by side.
 
     :param original: array of the original data in the shape (trial, channels, time)
     :type original: array of integers
@@ -43,7 +43,7 @@ def side_by_side(original, reconstructed, indexes):
 
 
 def pca_visual(pca_data, index, dim=1):
-    """Plot the PCA of one datapoint as image.
+    """Plot the pca of one datapoint as image.
     :param pca_data: array of the pca_transformed data
     :type pca_data: array of integers
     :param index: number of plotted samples
@@ -58,12 +58,12 @@ def pca_visual(pca_data, index, dim=1):
         plt.imshow(pca_data[index])
     else:
         plt.plot(pca_data[index])
-    plt.title('PCA data')
+    plt.title('pca data')
     plt.show()
 
 
 def difference(original, reconstructed, indexes):
-    """Plot the difference between the original data and from PCA reconstructed data.
+    """Plot the difference between the original data and from pca reconstructed data.
 
     :param original: array of the original data in the shape (trial, channels, time).
     :type original: array of integers

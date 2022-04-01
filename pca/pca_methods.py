@@ -15,7 +15,7 @@ def load_data(subjects=range(1, 11), time=[1, 3.5]):
     :param time: Time frame extracted from the whole eeg trial max: [0, 4.5]
     :type time: array of floats [start, end]
     :return dictionary of data points, events, scaler and pca with the experimental conditions as keys
-    :rtype float, float, RobustScaler, PCA
+    :rtype float, float, RobustScaler, pca
     """
     data, events = dp.load_data(subjects=subjects)
     d = {}
@@ -48,7 +48,7 @@ def load_data(subjects=range(1, 11), time=[1, 3.5]):
 
 def data_preprocessing(x, y, pca_type, pca_components, pca_condition, batch_size=10, batched=True, fit_pca=None):
     """
-    Preprocessing pipeline that applies the PCA on the x data before transforming x and y into a tensorflow dataset or
+    Preprocessing pipeline that applies the pca on the x data before transforming x and y into a tensorflow dataset or
     a tensor tuple.
 
     :param x: eeg data
@@ -72,12 +72,12 @@ def data_preprocessing(x, y, pca_type, pca_components, pca_condition, batch_size
     :param batched: Determines the output. If batched is true a dataset will be created,
         if batched is false a tuple is generated
     :type batched: Boolean
-    :param fit_pca: Determines if pca should be applied with an already fit PCA
-    :type fit_pca: sklearn.decomposit.PCA.fit()
+    :param fit_pca: Determines if pca should be applied with an already fit pca
+    :type fit_pca: sklearn.decomposit.pca.fit()
     :return:
     """
     pca = None
-    # Apply PCA on the eeg data
+    # Apply pca on the eeg data
     if pca_type:
         x, pca = apply_pca(x, pca_type=pca_type, pca_components=pca_components, pca_condition=pca_condition,
                            fit_pca=fit_pca)
@@ -105,7 +105,7 @@ def data_preprocessing(x, y, pca_type, pca_components, pca_condition, batch_size
     return data, pca
 
 
-""" Methods to apply PCA on EEG data"""
+""" Methods to apply pca on EEG data"""
 
 
 def apply_pca(data, pca_type=2, pca_condition=0, pca_components=0.98, fit_pca=None):
@@ -138,7 +138,7 @@ def apply_pca(data, pca_type=2, pca_condition=0, pca_components=0.98, fit_pca=No
 
 
 def reshape_pca(data, components, fit_pca=None):
-    """ Applies PCA on the flattened inout data
+    """ Applies pca on the flattened inout data
     :param data: eeg data
     :type data: array of shape trials, channel, time
     :param components: number of components of the pca
@@ -162,7 +162,7 @@ def reshape_pca(data, components, fit_pca=None):
 
 
 def channel_pca(data, components, pca_condition=0, fit_pca=None):
-    """ Applies PCA on the channel part of the input data
+    """ Applies pca on the channel part of the input data
     :param data: eeg data
     :type data: array of shape trials, channel, time
     :param components: number of components of the pca
@@ -205,7 +205,7 @@ def channel_pca(data, components, pca_condition=0, fit_pca=None):
 
 
 def time_pca(data, components, pca_condition=0, fit_pca=None):
-    """ Applies PCA on the time dimension of the input data
+    """ Applies pca on the time dimension of the input data
     :param data: eeg data
     :type data: array of shape trials, channel, time
     :param components: number of components of the pca
