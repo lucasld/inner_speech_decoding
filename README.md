@@ -14,8 +14,8 @@ A detailed description can be found [here](https://www.biorxiv.org/content/10.11
 #### Clone this Repository
 `git clone https://github.com/lucasld/inner_speech_decoding.git`
 #### Download the Dataset
-`aws s3 sync --no-sign-request s3://openneuro.org/ds003626 ds003626-download/`
+Use this command to download the dataset into the project folder:
+`aws s3 sync --no-sign-request s3://openneuro.org/ds003626 dataset/`
 or use [these](https://openneuro.org/datasets/ds003626/versions/2.1.0/download) instructions.
-(the downloaded folder should be placed into the project folder and be renamed to 'dataset')
 #### Create an Environment
 The provided 'environment.yml' includes all the required packages and libraries.
