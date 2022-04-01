@@ -12,14 +12,14 @@ PCA_CONDITION = 0
 TRAIN_SIZE = 0.75
 BATCH_SIZE = 15
 EPOCHS = 50
-PRETRAINING = False
+PRETRAINING = True
 
 # Parameters for Testing
 BATCH_SIZE_TRAIN = 10
 EPOCHS_TRAIN = 30
 FOLDS = 10
 TRAINING = True
-PRETRAINED = False
+PRETRAINED = True
 INDIV_SUBJECTS = True
 path = "PCA/pretraining_models/SimpleConv_e50_bs15_vacc24"
 
@@ -31,17 +31,12 @@ OPTIMIZER = tf.keras.optimizers.Adam(0.002)
 
 # Initialize Model
 
-simple = pmod.SimpleConv([16,8], DROPOUT) # [64,16]
+simple = pmod.SimpleConv([64,16], DROPOUT)
 # eegNet = me.EEGNet(nb_classes=4, Chans=PCA_COMPONENTS, Samples=640, dropoutRate=0.3, kernLength=64, F1=8, D=3, F2=16,
 #                   dropoutType='Dropout')
 # reshaped = pmod.SimpleFF(input_dim=[128, 64])
 
 model = simple
-
-print('--- Model Summary ---')
-#model.build(input_shape=(None, PCA_COMPONENTS, 640, 1))
-# model.build((None, PCA_COMPONENTS))
-#model.summary()
 
 print('--- Load data ---')
 tf.keras.backend.clear_session()
