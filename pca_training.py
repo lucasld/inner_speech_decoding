@@ -113,3 +113,4 @@ if INDIV_SUBJECTS:
         pu.k_fold_visualization(hist, ev, batch_size=BATCH_SIZE, epochs=EPOCHS, save=True,
                                 name=f"{MODEL_NAME}_Subject{subj}")
     print('--- k-fold Cross Validation for each subject done ---')
+
