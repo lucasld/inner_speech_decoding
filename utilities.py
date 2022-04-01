@@ -125,8 +125,8 @@ def plot_inter_train_results(results, figure_title,
         # pretrain epoch limit line
         ax.axvline(x=len(pretrain_res[i][n][key])-1)
         # add last pretrain and last training epoch to subject accumulators
-        print("LAST PRETRAIN INDEX:", len(pretrain_res[i][n][key]))
-        pretrain_sub_acc.append(mean[len(pretrain_res[i][n][key])])
+        print("LAST PRETRAIN INDEX:", len(pretrain_res[i][n][key])-1)
+        pretrain_sub_acc.append(mean[len(pretrain_res[i][n][key])-1])
         train_sub_acc.append(mean[-1])
     plt.savefig(f'{figure_title}.png')
     return pretrain_sub_acc, train_sub_acc
