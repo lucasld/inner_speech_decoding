@@ -4,7 +4,7 @@ The target of this project is to classify EEG data recordings with a CNN archite
 
 The Project was conducted as a final project in the course "Implementing Artificial Neural Networks with Tensorflow" in 2021/22 at the University of Osnabrueck by Fabienne Kock, Lucas Liess-Duquesne and Sascha Mühlinghaus. 
 
-For further information please refer to our [paper]().
+For further information please refer to our [report](https://github.com/lucasld/inner_speech_decoding/blob/main/Inner_Speech_Project_Report.pdf).
 
 ### Dataset
 We will use a [dataset](https://openneuro.org/datasets/ds003626) published by Nicolas Nieto, Victoria Peterson, Hugo Rufiner, Juan Kamienkowski, Ruben Spies.
@@ -14,17 +14,8 @@ A detailed description can be found [here](https://www.biorxiv.org/content/10.11
 #### Clone this Repository
 `git clone https://github.com/lucasld/inner_speech_decoding.git`
 #### Download the Dataset
-`aws s3 sync --no-sign-request s3://openneuro.org/ds003626 ds003626-download/`
+Use this command to download the dataset into the project folder:
+`aws s3 sync --no-sign-request s3://openneuro.org/ds003626 dataset/`
 or use [these](https://openneuro.org/datasets/ds003626/versions/2.1.0/download) instructions.
-(the downloaded folder should be placed into the project folder and be renamed to 'dataset')
 #### Create an Environment
 The provided 'environment.yml' includes all the required packages and libraries.
-
-### Results 
-
-The best average accuracy we achieved for classifying the data correctly was XY% with 25% being a random classification. 
-The best single subject classification was XY% with 25% being a random classification. 
-
-For more detailed results please refer to our [paper]().
-
-### Naming Conventions
